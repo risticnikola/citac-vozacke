@@ -19,6 +19,8 @@ public:
 
     bool insertService(const ServiceData& s);
     QList<ServiceData> servicesForVehicle(int vehicleId);
+    bool deleteService(int id);
+    bool deleteVehicle(int id);
 
 private:
     Database() = default;

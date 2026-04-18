@@ -188,3 +188,20 @@ QList<ServiceData> Database::servicesForVehicle(int vehicleId) {
     }
     return results;
 }
+
+bool Database::deleteService(int id) {
+    QSqlQuery q;
+    q.prepare("DELETE FROM services WHERE id = :id");
+    q.bindValue(":id", id);
+    return q.exec();
+}
+
+bool Database::deleteVehicle(int id) {
+    QSqlQuery q;
+    q.prepare("DELETE FROM services WHERE vehicle_id = :id");
+    q.bindValue(":id", id);
+    if (!q.exec()) return false;
+    q.prepare("DELETE FROM vehicles WHERE id = :id");
+    q.bindValue(":id", id);
+    return q.exec();
+}
