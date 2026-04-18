@@ -16,5 +16,6 @@ private:
     int             m_vehicleId;
     QComboBox*      m_serviceType;
     QLineEdit*      m_description;
+    QLineEdit*      m_mileage;
     QDoubleSpinBox* m_price;
 };

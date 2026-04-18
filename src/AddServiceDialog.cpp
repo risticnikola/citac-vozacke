@@ -21,6 +21,8 @@ AddServiceDialog::AddServiceDialog(int vehicleId, QWidget* parent)
     });
 
     m_description = new QLineEdit();
+    m_mileage     = new QLineEdit();
+    m_mileage->setPlaceholderText("e.g. 123456 km");
 
     m_price = new QDoubleSpinBox();
     m_price->setRange(0.0, 10000000.0);
@@ -30,6 +32,7 @@ AddServiceDialog::AddServiceDialog(int vehicleId, QWidget* parent)
     QFormLayout* form = new QFormLayout();
     form->addRow("Service Type *:", m_serviceType);
     form->addRow("Description:",    m_description);
+    form->addRow("Mileage:",        m_mileage);
     form->addRow("Price:",          m_price);
 
     QPushButton* btnOk     = new QPushButton("Save");
@@ -57,6 +60,7 @@ void AddServiceDialog::onSubmit() {
     s.vehicleId   = m_vehicleId;
     s.serviceType = type;
     s.description = m_description->text().trimmed();
+    s.mileage     = m_mileage->text().trimmed();
     s.price       = m_price->value();
 
     if (!Database::instance().insertService(s)) {
