@@ -20,6 +20,7 @@ struct ServiceData {
     int vehicleId = -1;
     QString serviceType;
     QString description;
+    QString mileage;
     double price = 0.0;
     QString date;
 };

@@ -35,7 +35,7 @@ bool Database::createTables() {
         )
     )");
     if (!ok) return false;
-    return q.exec(R"(
+    ok = q.exec(R"(
         CREATE TABLE IF NOT EXISTS services (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             vehicle_id INTEGER,
@@ -46,6 +46,13 @@ bool Database::createTables() {
             FOREIGN KEY(vehicle_id) REFERENCES vehicles(id)
         )
     )");
+    if (!ok) return false;
+
+    // Migration: add mileage column if not present (fails silently on repeat runs)
+    QSqlQuery migrate;
+    migrate.exec("ALTER TABLE services ADD COLUMN mileage TEXT DEFAULT ''");
+
+    return true;
 }
 
 int Database::insertVehicle(const VehicleData& v) {
@@ -150,11 +157,12 @@ VehicleData Database::rowToVehicle(const QSqlQuery& q) {
 
 bool Database::insertService(const ServiceData& s) {
     QSqlQuery q;
-    q.prepare(R"(INSERT INTO services (vehicle_id, service_type, description, price)
-        VALUES (:vid, :type, :desc, :price))");
+    q.prepare(R"(INSERT INTO services (vehicle_id, service_type, description, mileage, price)
+        VALUES (:vid, :type, :desc, :mileage, :price))");
     q.bindValue(":vid", s.vehicleId);
     q.bindValue(":type", s.serviceType);
     q.bindValue(":desc", s.description);
+    q.bindValue(":mileage", s.mileage);
     q.bindValue(":price", s.price);
     return q.exec();
 }
@@ -162,7 +170,7 @@ bool Database::insertService(const ServiceData& s) {
 QList<ServiceData> Database::servicesForVehicle(int vehicleId) {
     QList<ServiceData> results;
     QSqlQuery q;
-    q.prepare(R"(SELECT id, vehicle_id, service_type, description, price, date
+    q.prepare(R"(SELECT id, vehicle_id, service_type, description, mileage, price, date
         FROM services WHERE vehicle_id = :vid ORDER BY date DESC)");
     q.bindValue(":vid", vehicleId);
     q.exec();
@@ -172,8 +180,9 @@ QList<ServiceData> Database::servicesForVehicle(int vehicleId) {
         s.vehicleId   = q.value(1).toInt();
         s.serviceType = q.value(2).toString();
         s.description = q.value(3).toString();
-        s.price       = q.value(4).toDouble();
-        s.date        = q.value(5).toString();
+        s.mileage     = q.value(4).toString();
+        s.price       = q.value(5).toDouble();
+        s.date        = q.value(6).toString();
         results.append(s);
     }
     return results;
