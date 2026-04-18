@@ -3,10 +3,13 @@
 #include <windows.h>
 
 bool CardReader::init() {
-    long result = sdStartup(0);
-    if (result != S_OK) return false;
+    if (sdStartup(0) != S_OK) return false;
+    if (!selectFirstReader()) {
+        sdCleanup();
+        return false;
+    }
     m_initialized = true;
-    return selectFirstReader();
+    return true;
 }
 
 bool CardReader::selectFirstReader() {
@@ -22,8 +25,8 @@ bool CardReader::readCard(VehicleData& outData) {
 
     SD_VEHICLE_DATA vehicle{};
     SD_PERSONAL_DATA person{};
-    sdReadVehicleData(&vehicle);
-    sdReadPersonalData(&person);
+    if (sdReadVehicleData(&vehicle) != S_OK) return false;
+    if (sdReadPersonalData(&person) != S_OK) return false;
 
     auto toQStr = [](const char* data, long size) -> QString {
         return QString::fromLocal8Bit(data, size).trimmed();

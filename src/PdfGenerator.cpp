@@ -4,12 +4,15 @@
 #include <QPageSize>
 #include <QDateTime>
 #include <QFont>
+#include <QStandardPaths>
+#include <QDir>
 
 QString PdfGenerator::generate(const VehicleData& vehicle, const ServiceData& service) {
     QString datePart = QDateTime::currentDateTime().toString("yyyy-MM-dd");
     QString regSafe  = vehicle.registration;
     regSafe.replace(" ", "_").replace("/", "-");
-    QString filename = QString("invoice_%1_%2.pdf").arg(regSafe, datePart);
+    QString docsPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    QString filename = docsPath + "/invoice_" + regSafe + "_" + datePart + ".pdf";
 
     QPdfWriter writer(filename);
     writer.setPageSize(QPageSize(QPageSize::A4));

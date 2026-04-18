@@ -1,5 +1,6 @@
 #pragma once
 #include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QList>
 #include "Models.h"
 

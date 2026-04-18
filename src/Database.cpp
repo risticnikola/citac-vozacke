@@ -9,6 +9,8 @@ Database& Database::instance() {
 }
 
 bool Database::init(const QString& path) {
+    if (QSqlDatabase::contains(QSqlDatabase::defaultConnection))
+        QSqlDatabase::removeDatabase(QSqlDatabase::defaultConnection);
     QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
     db.setDatabaseName(path);
     if (!db.open()) return false;
@@ -103,11 +105,13 @@ bool Database::updateVehicle(int id, const VehicleData& v) {
 QList<VehicleData> Database::searchVehicles(const QString& query) {
     QList<VehicleData> results;
     QSqlQuery q;
-    QString pattern = "%" + query + "%";
+    QString escaped = query;
+    escaped.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    QString pattern = "%" + escaped + "%";
     q.prepare(R"(SELECT id, owner, make_model, chassis_number, year, engine_power_kw,
         transmission, mileage, registration, color, created_at
         FROM vehicles
-        WHERE make_model LIKE :mm OR chassis_number LIKE :cn OR registration LIKE :reg
+        WHERE make_model LIKE :mm ESCAPE '\\' OR chassis_number LIKE :cn ESCAPE '\\' OR registration LIKE :reg ESCAPE '\\'
         ORDER BY created_at DESC)");
     q.bindValue(":mm", pattern);
     q.bindValue(":cn", pattern);
