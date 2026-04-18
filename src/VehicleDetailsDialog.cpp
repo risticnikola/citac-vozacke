@@ -11,10 +11,15 @@
 #include <QComboBox>
 #include <QMessageBox>
 #include <QHeaderView>
+#include <QTimer>
 
 VehicleDetailsDialog::VehicleDetailsDialog(int vehicleId, QWidget* parent)
     : QDialog(parent), m_vehicleId(vehicleId) {
     m_vehicle = Database::instance().vehicleById(vehicleId);
+    if (m_vehicle.id <= 0) {
+        QTimer::singleShot(0, this, [this]{ reject(); });
+        return;
+    }
     setupUi();
     loadServices();
 }
@@ -141,11 +146,14 @@ void VehicleDetailsDialog::onDeleteVehicle() {
 }
 
 void VehicleDetailsDialog::onSaveMileage() {
-    m_vehicle.mileage = m_mileageEdit->text().trimmed();
-    if (!Database::instance().updateVehicle(m_vehicleId, m_vehicle)) {
+    QString newMileage = m_mileageEdit->text().trimmed();
+    VehicleData toSave = m_vehicle;
+    toSave.mileage = newMileage;
+    if (!Database::instance().updateVehicle(m_vehicleId, toSave)) {
         QMessageBox::critical(this, "Error", "Failed to save mileage.");
         return;
     }
+    m_vehicle.mileage = newMileage;
     QMessageBox::information(this, "Saved", "Mileage updated.");
 }
 

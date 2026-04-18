@@ -102,7 +102,10 @@ void MainWindow::handleCardData(const VehicleData& data) {
                 VehicleData existing = db.vehicleById(id);
                 toUpdate.mileage = existing.mileage;
             }
-            db.updateVehicle(id, toUpdate);
+            if (!db.updateVehicle(id, toUpdate)) {
+                QMessageBox::critical(this, "Error", "Failed to update vehicle record.");
+                return;
+            }
             QMessageBox::information(this, "Updated", "Vehicle record updated.");
         }
     } else {
