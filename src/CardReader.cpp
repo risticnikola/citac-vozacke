@@ -3,6 +3,7 @@
 #include <windows.h>
 
 bool CardReader::init() {
+    if (m_initialized) cleanup();
     if (sdStartup(0) != S_OK) return false;
     if (!selectFirstReader()) {
         sdCleanup();

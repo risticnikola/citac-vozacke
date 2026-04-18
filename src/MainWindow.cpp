@@ -123,7 +123,9 @@ void MainWindow::onSearchChanged(const QString& text) {
 void MainWindow::onTableRowDoubleClicked(int row, int) {
     QTableWidgetItem* idItem = m_table->item(row, 0);
     if (!idItem) return;
-    int vehicleId = idItem->text().toInt();
+    bool ok = false;
+    int vehicleId = idItem->text().toInt(&ok);
+    if (!ok || vehicleId <= 0) return;
     VehicleDetailsDialog dlg(vehicleId, this);
     dlg.exec();
     loadVehicles(m_search->text());

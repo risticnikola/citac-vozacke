@@ -115,7 +115,9 @@ void VehicleDetailsDialog::onGeneratePdf() {
 
     if (picker.exec() != QDialog::Accepted) return;
 
-    const ServiceData& sel = services[combo->currentIndex()];
+    int idx = combo->currentIndex();
+    if (idx < 0 || idx >= services.size()) return;
+    const ServiceData& sel = services[idx];
     PdfGenerator gen;
     QString path = gen.generate(m_vehicle, sel);
     if (!path.isEmpty())
