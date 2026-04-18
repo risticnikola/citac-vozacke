@@ -41,6 +41,7 @@ bool Database::createTables() {
             vehicle_id INTEGER,
             service_type TEXT,
             description TEXT,
+            mileage TEXT DEFAULT '',
             price REAL,
             date DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(vehicle_id) REFERENCES vehicles(id)
