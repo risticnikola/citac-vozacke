@@ -7,20 +7,35 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Sql PrintSupport)
+find_package(Qt5 REQUIRED COMPONENTS Widgets Sql PrintSupport)
 
 set(SDK_DIR "${CMAKE_SOURCE_DIR}/citacVozacke")
 
-# Generate MinGW-compatible import library from the MSVC-format DLL
-set(DLLTOOL "C:/Qt/Tools/mingw1310_64/bin/dlltool.exe")
+# Generate MinGW-compatible import library from the 32-bit MSVC DLL
+# Requires two steps: gendef extracts exports, then dlltool builds the .a
+set(GENDEF  "C:/Qt/Tools/mingw810_32/bin/gendef.exe")
+set(DLLTOOL "C:/Qt/Tools/mingw810_32/bin/dlltool.exe")
+set(SDK_DEF        "${CMAKE_BINARY_DIR}/eVehicleRegistrationAPI.def")
 set(SDK_IMPORT_LIB "${CMAKE_BINARY_DIR}/libeVehicleRegistrationAPI.a")
-execute_process(
-    COMMAND "${DLLTOOL}" -D "${SDK_DIR}/eVehicleRegistrationAPI.dll"
-                         -l "${SDK_IMPORT_LIB}"
-    RESULT_VARIABLE DLLTOOL_RESULT
-)
-if(NOT DLLTOOL_RESULT EQUAL 0)
-    message(FATAL_ERROR "dlltool failed to generate import library")
+
+if(NOT EXISTS "${SDK_IMPORT_LIB}")
+    execute_process(
+        COMMAND "${GENDEF}" - "${SDK_DIR}/eVehicleRegistrationAPI.dll"
+        OUTPUT_FILE "${SDK_DEF}"
+        RESULT_VARIABLE GENDEF_RESULT
+    )
+    if(NOT GENDEF_RESULT EQUAL 0)
+        message(FATAL_ERROR "gendef failed to extract DLL exports")
+    endif()
+    execute_process(
+        COMMAND "${DLLTOOL}" -D "eVehicleRegistrationAPI.dll"
+                             -d "${SDK_DEF}"
+                             -l "${SDK_IMPORT_LIB}"
+        RESULT_VARIABLE DLLTOOL_RESULT
+    )
+    if(NOT DLLTOOL_RESULT EQUAL 0)
+        message(FATAL_ERROR "dlltool failed to generate import library")
+    endif()
 endif()
 
 set(SOURCES
@@ -53,9 +68,9 @@ target_include_directories(CarRepairShop PRIVATE
 )
 
 target_link_libraries(CarRepairShop PRIVATE
-    Qt6::Widgets
-    Qt6::Sql
-    Qt6::PrintSupport
+    Qt5::Widgets
+    Qt5::Sql
+    Qt5::PrintSupport
     "${SDK_IMPORT_LIB}"
 )
 
