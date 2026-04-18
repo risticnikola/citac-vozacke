@@ -19,6 +19,7 @@ bool Database::init(const QString& path) {
 
 bool Database::createTables() {
     QSqlQuery q;
+    q.exec("PRAGMA foreign_keys = ON");
     bool ok = q.exec(R"(
         CREATE TABLE IF NOT EXISTS vehicles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -197,11 +198,17 @@ bool Database::deleteService(int id) {
 }
 
 bool Database::deleteVehicle(int id) {
+    QSqlDatabase db = QSqlDatabase::database();
+    if (!db.transaction()) return false;
+
     QSqlQuery q;
     q.prepare("DELETE FROM services WHERE vehicle_id = :id");
     q.bindValue(":id", id);
-    if (!q.exec()) return false;
+    if (!q.exec()) { db.rollback(); return false; }
+
     q.prepare("DELETE FROM vehicles WHERE id = :id");
     q.bindValue(":id", id);
-    return q.exec();
+    if (!q.exec()) { db.rollback(); return false; }
+
+    return db.commit();
 }
