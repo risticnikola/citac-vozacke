@@ -111,7 +111,7 @@ QList<VehicleData> Database::searchVehicles(const QString& query) {
     q.prepare(R"(SELECT id, owner, make_model, chassis_number, year, engine_power_kw,
         transmission, mileage, registration, color, created_at
         FROM vehicles
-        WHERE make_model LIKE :mm ESCAPE '\\' OR chassis_number LIKE :cn ESCAPE '\\' OR registration LIKE :reg ESCAPE '\\'
+        WHERE make_model LIKE :mm ESCAPE '\' OR chassis_number LIKE :cn ESCAPE '\' OR registration LIKE :reg ESCAPE '\'
         ORDER BY created_at DESC)");
     q.bindValue(":mm", pattern);
     q.bindValue(":cn", pattern);

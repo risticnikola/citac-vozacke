@@ -79,3 +79,14 @@ add_custom_command(TARGET CarRepairShop POST_BUILD
         "${SDK_DIR}/eVehicleRegistrationAPI.dll"
         $<TARGET_FILE_DIR:CarRepairShop>
 )
+
+find_program(WINDEPLOYQT windeployqt
+    HINTS "C:/Qt/5.15.2/mingw81_32/bin")
+if(WINDEPLOYQT)
+    add_custom_command(TARGET CarRepairShop POST_BUILD
+        COMMAND "${WINDEPLOYQT}"
+            --no-translations --no-system-d3d-compiler --no-opengl-sw
+            $<TARGET_FILE:CarRepairShop>
+        WORKING_DIRECTORY $<TARGET_FILE_DIR:CarRepairShop>
+    )
+endif()
