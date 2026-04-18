@@ -21,9 +21,11 @@ VehicleDetailsDialog::VehicleDetailsDialog(int vehicleId, QWidget* parent)
 
 void VehicleDetailsDialog::setupUi() {
     setWindowTitle("Vehicle Details — " + m_vehicle.makeModel);
-    resize(720, 540);
+    resize(760, 580);
 
-    QGroupBox* infoBox   = new QGroupBox("Vehicle Information");
+    m_mileageEdit = new QLineEdit(m_vehicle.mileage);
+
+    QGroupBox*   infoBox = new QGroupBox("Vehicle Information");
     QFormLayout* form    = new QFormLayout(infoBox);
     form->addRow("Owner:",        new QLabel(m_vehicle.owner));
     form->addRow("Make/Model:",   new QLabel(m_vehicle.makeModel));
@@ -31,31 +33,39 @@ void VehicleDetailsDialog::setupUi() {
     form->addRow("Year:",         new QLabel(m_vehicle.year));
     form->addRow("Engine (kW):",  new QLabel(m_vehicle.enginePowerKw));
     form->addRow("Transmission:", new QLabel(m_vehicle.transmission));
-    form->addRow("Mileage:",      new QLabel(m_vehicle.mileage));
+    form->addRow("Mileage:",      m_mileageEdit);
     form->addRow("Registration:", new QLabel(m_vehicle.registration));
     form->addRow("Color:",        new QLabel(m_vehicle.color));
 
-    m_servicesTable = new QTableWidget(0, 5);
-    m_servicesTable->setHorizontalHeaderLabels({"ID", "Type", "Description", "Price (RSD)", "Date"});
+    m_servicesTable = new QTableWidget(0, 6);
+    m_servicesTable->setHorizontalHeaderLabels({"ID", "Type", "Description", "Mileage", "Price (RSD)", "Date"});
     m_servicesTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_servicesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_servicesTable->horizontalHeader()->setStretchLastSection(true);
     m_servicesTable->setColumnWidth(0, 40);
-    m_servicesTable->setColumnWidth(1, 140);
-    m_servicesTable->setColumnWidth(2, 200);
+    m_servicesTable->setColumnWidth(1, 130);
+    m_servicesTable->setColumnWidth(2, 180);
     m_servicesTable->setColumnWidth(3, 90);
+    m_servicesTable->setColumnWidth(4, 90);
 
-    QGroupBox* servBox   = new QGroupBox("Service History");
+    QGroupBox*   servBox = new QGroupBox("Service History");
     QVBoxLayout* servLay = new QVBoxLayout(servBox);
     servLay->addWidget(m_servicesTable);
 
-    QPushButton* btnAdd   = new QPushButton("Add Service");
-    QPushButton* btnPdf   = new QPushButton("Generate PDF Invoice");
-    QPushButton* btnClose = new QPushButton("Close");
-    QHBoxLayout* btns     = new QHBoxLayout();
+    QPushButton* btnSaveMileage = new QPushButton("Save Mileage");
+    QPushButton* btnAdd         = new QPushButton("Add Service");
+    QPushButton* btnDeleteSvc   = new QPushButton("Delete Service");
+    QPushButton* btnPdf         = new QPushButton("Generate PDF Invoice");
+    QPushButton* btnDeleteVeh   = new QPushButton("Delete Vehicle");
+    QPushButton* btnClose       = new QPushButton("Close");
+
+    QHBoxLayout* btns = new QHBoxLayout();
+    btns->addWidget(btnSaveMileage);
     btns->addWidget(btnAdd);
+    btns->addWidget(btnDeleteSvc);
     btns->addWidget(btnPdf);
     btns->addStretch();
+    btns->addWidget(btnDeleteVeh);
     btns->addWidget(btnClose);
 
     QVBoxLayout* main = new QVBoxLayout(this);
@@ -63,9 +73,12 @@ void VehicleDetailsDialog::setupUi() {
     main->addWidget(servBox, 1);
     main->addLayout(btns);
 
-    connect(btnAdd,   &QPushButton::clicked, this, &VehicleDetailsDialog::onAddService);
-    connect(btnPdf,   &QPushButton::clicked, this, &VehicleDetailsDialog::onGeneratePdf);
-    connect(btnClose, &QPushButton::clicked, this, &QDialog::accept);
+    connect(btnSaveMileage, &QPushButton::clicked, this, &VehicleDetailsDialog::onSaveMileage);
+    connect(btnAdd,         &QPushButton::clicked, this, &VehicleDetailsDialog::onAddService);
+    connect(btnDeleteSvc,   &QPushButton::clicked, this, &VehicleDetailsDialog::onDeleteService);
+    connect(btnPdf,         &QPushButton::clicked, this, &VehicleDetailsDialog::onGeneratePdf);
+    connect(btnDeleteVeh,   &QPushButton::clicked, this, &VehicleDetailsDialog::onDeleteVehicle);
+    connect(btnClose,       &QPushButton::clicked, this, &QDialog::accept);
 }
 
 void VehicleDetailsDialog::loadServices() {
@@ -77,8 +90,9 @@ void VehicleDetailsDialog::loadServices() {
         m_servicesTable->setItem(row, 0, new QTableWidgetItem(QString::number(s.id)));
         m_servicesTable->setItem(row, 1, new QTableWidgetItem(s.serviceType));
         m_servicesTable->setItem(row, 2, new QTableWidgetItem(s.description));
-        m_servicesTable->setItem(row, 3, new QTableWidgetItem(QString::number(s.price, 'f', 2)));
-        m_servicesTable->setItem(row, 4, new QTableWidgetItem(s.date));
+        m_servicesTable->setItem(row, 3, new QTableWidgetItem(s.mileage));
+        m_servicesTable->setItem(row, 4, new QTableWidgetItem(QString::number(s.price, 'f', 2)));
+        m_servicesTable->setItem(row, 5, new QTableWidgetItem(s.date));
     }
 }
 
@@ -86,6 +100,53 @@ void VehicleDetailsDialog::onAddService() {
     AddServiceDialog dlg(m_vehicleId, this);
     if (dlg.exec() == QDialog::Accepted)
         loadServices();
+}
+
+void VehicleDetailsDialog::onDeleteService() {
+    int row = m_servicesTable->currentRow();
+    if (row < 0) {
+        QMessageBox::information(this, "No Selection", "Select a service row to delete.");
+        return;
+    }
+    QTableWidgetItem* idItem = m_servicesTable->item(row, 0);
+    if (!idItem) return;
+    bool ok = false;
+    int serviceId = idItem->text().toInt(&ok);
+    if (!ok || serviceId <= 0) return;
+
+    int choice = QMessageBox::question(this, "Delete Service",
+        "Delete this service record? This cannot be undone.",
+        QMessageBox::Yes | QMessageBox::No);
+    if (choice != QMessageBox::Yes) return;
+
+    if (!Database::instance().deleteService(serviceId)) {
+        QMessageBox::critical(this, "Error", "Failed to delete service.");
+        return;
+    }
+    loadServices();
+}
+
+void VehicleDetailsDialog::onDeleteVehicle() {
+    int choice = QMessageBox::question(this, "Delete Vehicle",
+        QString("Delete vehicle %1 (%2) and ALL its service records?\nThis cannot be undone.")
+            .arg(m_vehicle.makeModel, m_vehicle.registration),
+        QMessageBox::Yes | QMessageBox::No);
+    if (choice != QMessageBox::Yes) return;
+
+    if (!Database::instance().deleteVehicle(m_vehicleId)) {
+        QMessageBox::critical(this, "Error", "Failed to delete vehicle.");
+        return;
+    }
+    accept();
+}
+
+void VehicleDetailsDialog::onSaveMileage() {
+    m_vehicle.mileage = m_mileageEdit->text().trimmed();
+    if (!Database::instance().updateVehicle(m_vehicleId, m_vehicle)) {
+        QMessageBox::critical(this, "Error", "Failed to save mileage.");
+        return;
+    }
+    QMessageBox::information(this, "Saved", "Mileage updated.");
 }
 
 void VehicleDetailsDialog::onGeneratePdf() {
@@ -102,9 +163,9 @@ void VehicleDetailsDialog::onGeneratePdf() {
         combo->addItem(QString("%1 — %2 — %3 RSD")
             .arg(s.serviceType, s.date, QString::number(s.price, 'f', 2)));
     }
-    QPushButton* btnOk  = new QPushButton("Generate");
-    QPushButton* btnNo  = new QPushButton("Cancel");
-    QHBoxLayout* btns   = new QHBoxLayout();
+    QPushButton* btnOk = new QPushButton("Generate");
+    QPushButton* btnNo = new QPushButton("Cancel");
+    QHBoxLayout* btns  = new QHBoxLayout();
     btns->addWidget(btnOk);
     btns->addWidget(btnNo);
     QVBoxLayout* lay = new QVBoxLayout(&picker);

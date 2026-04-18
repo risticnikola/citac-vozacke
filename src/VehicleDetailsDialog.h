@@ -1,6 +1,7 @@
 #pragma once
 #include <QDialog>
 #include <QTableWidget>
+#include <QLineEdit>
 #include "Models.h"
 
 class VehicleDetailsDialog : public QDialog {
@@ -10,6 +11,9 @@ public:
 
 private slots:
     void onAddService();
+    void onDeleteService();
+    void onDeleteVehicle();
+    void onSaveMileage();
     void onGeneratePdf();
 
 private:
@@ -19,4 +23,5 @@ private:
     int           m_vehicleId;
     VehicleData   m_vehicle;
     QTableWidget* m_servicesTable;
+    QLineEdit*    m_mileageEdit;
 };

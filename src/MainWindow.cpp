@@ -97,7 +97,12 @@ void MainWindow::handleCardData(const VehicleData& data) {
             QMessageBox::Yes | QMessageBox::No);
         if (choice == QMessageBox::Yes) {
             int id = db.vehicleIdByChassisNumber(data.chassisNumber);
-            db.updateVehicle(id, data);
+            VehicleData toUpdate = data;
+            if (toUpdate.mileage.isEmpty()) {
+                VehicleData existing = db.vehicleById(id);
+                toUpdate.mileage = existing.mileage;
+            }
+            db.updateVehicle(id, toUpdate);
             QMessageBox::information(this, "Updated", "Vehicle record updated.");
         }
     } else {
