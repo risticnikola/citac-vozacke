@@ -58,6 +58,8 @@ QString PdfGenerator::generate(const VehicleData& vehicle, const ServiceData& se
     drawHRule();
     drawText("Vrsta usluge:  " + service.serviceType,  normalFont);
     drawText("Opis:          " + service.description,  normalFont);
+    if (!service.mileage.isEmpty())
+        drawText("Kilometraza:   " + service.mileage,  normalFont);
     drawText("Datum:         " + service.date,         normalFont);
     drawText(QString("Cena:          %1 RSD").arg(service.price, 0, 'f', 2), normalFont);
     drawHRule();
