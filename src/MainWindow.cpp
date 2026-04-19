@@ -20,7 +20,7 @@ void MainWindow::setupUi() {
     m_btnReadCard   = new QPushButton("Read Card");
     m_btnAddVehicle = new QPushButton("Add Vehicle");
     m_search        = new QLineEdit();
-    m_search->setPlaceholderText("Search by make/model, chassis number, or registration...");
+    m_search->setPlaceholderText("Search by make/model, chassis, registration, or phone...");
 
     QHBoxLayout* topBar = new QHBoxLayout();
     topBar->addWidget(m_btnReadCard);
@@ -97,11 +97,11 @@ void MainWindow::handleCardData(const VehicleData& data) {
             QMessageBox::Yes | QMessageBox::No);
         if (choice == QMessageBox::Yes) {
             int id = db.vehicleIdByChassisNumber(data.chassisNumber);
+            VehicleData existing = db.vehicleById(id);
             VehicleData toUpdate = data;
-            if (toUpdate.mileage.isEmpty()) {
-                VehicleData existing = db.vehicleById(id);
+            if (toUpdate.mileage.isEmpty())
                 toUpdate.mileage = existing.mileage;
-            }
+            toUpdate.phone = existing.phone;
             if (!db.updateVehicle(id, toUpdate)) {
                 QMessageBox::critical(this, "Error", "Failed to update vehicle record.");
                 return;

@@ -13,7 +13,7 @@ private slots:
     void onAddService();
     void onDeleteService();
     void onDeleteVehicle();
-    void onSaveMileage();
+    void onSave();
     void onGeneratePdf();
 
 private:
@@ -24,4 +24,5 @@ private:
     VehicleData   m_vehicle;
     QTableWidget* m_servicesTable;
     QLineEdit*    m_mileageEdit;
+    QLineEdit*    m_phoneEdit;
 };

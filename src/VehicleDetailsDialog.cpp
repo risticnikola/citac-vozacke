@@ -28,11 +28,13 @@ void VehicleDetailsDialog::setupUi() {
     setWindowTitle("Vehicle Details — " + m_vehicle.makeModel);
     resize(760, 580);
 
+    m_phoneEdit   = new QLineEdit(m_vehicle.phone);
     m_mileageEdit = new QLineEdit(m_vehicle.mileage);
 
     QGroupBox*   infoBox = new QGroupBox("Vehicle Information");
     QFormLayout* form    = new QFormLayout(infoBox);
     form->addRow("Owner:",        new QLabel(m_vehicle.owner));
+    form->addRow("Phone:",        m_phoneEdit);
     form->addRow("Make/Model:",   new QLabel(m_vehicle.makeModel));
     form->addRow("Chassis:",      new QLabel(m_vehicle.chassisNumber));
     form->addRow("Year:",         new QLabel(m_vehicle.year));
@@ -57,15 +59,15 @@ void VehicleDetailsDialog::setupUi() {
     QVBoxLayout* servLay = new QVBoxLayout(servBox);
     servLay->addWidget(m_servicesTable);
 
-    QPushButton* btnSaveMileage = new QPushButton("Save Mileage");
-    QPushButton* btnAdd         = new QPushButton("Add Service");
-    QPushButton* btnDeleteSvc   = new QPushButton("Delete Service");
-    QPushButton* btnPdf         = new QPushButton("Generate PDF Invoice");
-    QPushButton* btnDeleteVeh   = new QPushButton("Delete Vehicle");
-    QPushButton* btnClose       = new QPushButton("Close");
+    QPushButton* btnSave      = new QPushButton("Save");
+    QPushButton* btnAdd       = new QPushButton("Add Service");
+    QPushButton* btnDeleteSvc = new QPushButton("Delete Service");
+    QPushButton* btnPdf       = new QPushButton("Generate PDF Invoice");
+    QPushButton* btnDeleteVeh = new QPushButton("Delete Vehicle");
+    QPushButton* btnClose     = new QPushButton("Close");
 
     QHBoxLayout* btns = new QHBoxLayout();
-    btns->addWidget(btnSaveMileage);
+    btns->addWidget(btnSave);
     btns->addWidget(btnAdd);
     btns->addWidget(btnDeleteSvc);
     btns->addWidget(btnPdf);
@@ -78,12 +80,12 @@ void VehicleDetailsDialog::setupUi() {
     main->addWidget(servBox, 1);
     main->addLayout(btns);
 
-    connect(btnSaveMileage, &QPushButton::clicked, this, &VehicleDetailsDialog::onSaveMileage);
-    connect(btnAdd,         &QPushButton::clicked, this, &VehicleDetailsDialog::onAddService);
-    connect(btnDeleteSvc,   &QPushButton::clicked, this, &VehicleDetailsDialog::onDeleteService);
-    connect(btnPdf,         &QPushButton::clicked, this, &VehicleDetailsDialog::onGeneratePdf);
-    connect(btnDeleteVeh,   &QPushButton::clicked, this, &VehicleDetailsDialog::onDeleteVehicle);
-    connect(btnClose,       &QPushButton::clicked, this, &QDialog::accept);
+    connect(btnSave,      &QPushButton::clicked, this, &VehicleDetailsDialog::onSave);
+    connect(btnAdd,       &QPushButton::clicked, this, &VehicleDetailsDialog::onAddService);
+    connect(btnDeleteSvc, &QPushButton::clicked, this, &VehicleDetailsDialog::onDeleteService);
+    connect(btnPdf,       &QPushButton::clicked, this, &VehicleDetailsDialog::onGeneratePdf);
+    connect(btnDeleteVeh, &QPushButton::clicked, this, &VehicleDetailsDialog::onDeleteVehicle);
+    connect(btnClose,     &QPushButton::clicked, this, &QDialog::accept);
 }
 
 void VehicleDetailsDialog::loadServices() {
@@ -145,16 +147,19 @@ void VehicleDetailsDialog::onDeleteVehicle() {
     accept();
 }
 
-void VehicleDetailsDialog::onSaveMileage() {
+void VehicleDetailsDialog::onSave() {
+    QString newPhone   = m_phoneEdit->text().trimmed();
     QString newMileage = m_mileageEdit->text().trimmed();
     VehicleData toSave = m_vehicle;
+    toSave.phone   = newPhone;
     toSave.mileage = newMileage;
     if (!Database::instance().updateVehicle(m_vehicleId, toSave)) {
-        QMessageBox::critical(this, "Error", "Failed to save mileage.");
+        QMessageBox::critical(this, "Error", "Failed to save.");
         return;
     }
+    m_vehicle.phone   = newPhone;
     m_vehicle.mileage = newMileage;
-    QMessageBox::information(this, "Saved", "Mileage updated.");
+    QMessageBox::information(this, "Saved", "Vehicle details updated.");
 }
 
 void VehicleDetailsDialog::onGeneratePdf() {
