@@ -114,7 +114,7 @@ bool Database::updateVehicle(int id, const VehicleData& v) {
     q.bindValue(":registration",    v.registration);
     q.bindValue(":color",           v.color);
     q.bindValue(":id",              id);
-    return q.exec();
+    return q.exec() && q.numRowsAffected() > 0;
 }
 
 QList<VehicleData> Database::searchVehicles(const QString& query) {

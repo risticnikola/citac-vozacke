@@ -97,6 +97,10 @@ void MainWindow::handleCardData(const VehicleData& data) {
             QMessageBox::Yes | QMessageBox::No);
         if (choice == QMessageBox::Yes) {
             int id = db.vehicleIdByChassisNumber(data.chassisNumber);
+            if (id <= 0) {
+                QMessageBox::critical(this, "Error", "Failed to locate vehicle record.");
+                return;
+            }
             VehicleData existing = db.vehicleById(id);
             VehicleData toUpdate = data;
             if (toUpdate.mileage.isEmpty())
