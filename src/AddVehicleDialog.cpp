@@ -12,6 +12,7 @@ AddVehicleDialog::AddVehicleDialog(QWidget* parent) : QDialog(parent) {
     setMinimumWidth(400);
 
     m_owner         = new QLineEdit();
+    m_phone         = new QLineEdit();
     m_makeModel     = new QLineEdit();
     m_chassisNumber = new QLineEdit();
     m_year          = new QLineEdit();
@@ -23,6 +24,7 @@ AddVehicleDialog::AddVehicleDialog(QWidget* parent) : QDialog(parent) {
 
     QFormLayout* form = new QFormLayout();
     form->addRow("Owner:",             m_owner);
+    form->addRow("Phone:",             m_phone);
     form->addRow("Make/Model:",        m_makeModel);
     form->addRow("Chassis Number *:",  m_chassisNumber);
     form->addRow("Year:",              m_year);
@@ -59,6 +61,7 @@ void AddVehicleDialog::onSubmit() {
 
     VehicleData v;
     v.owner         = m_owner->text().trimmed();
+    v.phone         = m_phone->text().trimmed();
     v.makeModel     = m_makeModel->text().trimmed();
     v.chassisNumber = chassis;
     v.year          = m_year->text().trimmed();

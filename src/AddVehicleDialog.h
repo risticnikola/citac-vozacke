@@ -12,6 +12,7 @@ private slots:
 
 private:
     QLineEdit* m_owner;
+    QLineEdit* m_phone;
     QLineEdit* m_makeModel;
     QLineEdit* m_chassisNumber;
     QLineEdit* m_year;
