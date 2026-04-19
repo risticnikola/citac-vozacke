@@ -48,6 +48,8 @@ QString PdfGenerator::generate(const VehicleData& vehicle, const ServiceData& se
     drawText("VOZILO", sectionFont);
     drawHRule();
     drawText("Vlasnik:       " + vehicle.owner,         normalFont);
+    if (!vehicle.phone.isEmpty())
+        drawText("Telefon:       " + vehicle.phone,     normalFont);
     drawText("Marka/Model:   " + vehicle.makeModel,     normalFont);
     drawText("Registracija:  " + vehicle.registration,  normalFont);
     drawText("Broj sasije:   " + vehicle.chassisNumber, normalFont);
