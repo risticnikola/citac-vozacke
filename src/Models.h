@@ -4,6 +4,7 @@
 struct VehicleData {
     int id = -1;
     QString owner;
+    QString phone;
     QString makeModel;
     QString chassisNumber;
     QString year;

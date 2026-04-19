@@ -24,6 +24,7 @@ bool Database::createTables() {
         CREATE TABLE IF NOT EXISTS vehicles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             owner TEXT,
+            phone TEXT DEFAULT '',
             make_model TEXT,
             chassis_number TEXT UNIQUE,
             year TEXT,
@@ -54,23 +55,27 @@ bool Database::createTables() {
     QSqlQuery migrate;
     migrate.exec("ALTER TABLE services ADD COLUMN mileage TEXT DEFAULT ''");
 
+    QSqlQuery migratePhone;
+    migratePhone.exec("ALTER TABLE vehicles ADD COLUMN phone TEXT DEFAULT ''");
+
     return true;
 }
 
 int Database::insertVehicle(const VehicleData& v) {
     QSqlQuery q;
     q.prepare(R"(INSERT INTO vehicles
-        (owner, make_model, chassis_number, year, engine_power_kw, transmission, mileage, registration, color)
-        VALUES (:owner, :make_model, :chassis_number, :year, :engine_power_kw, :transmission, :mileage, :registration, :color))");
-    q.bindValue(":owner", v.owner);
-    q.bindValue(":make_model", v.makeModel);
+        (owner, phone, make_model, chassis_number, year, engine_power_kw, transmission, mileage, registration, color)
+        VALUES (:owner, :phone, :make_model, :chassis_number, :year, :engine_power_kw, :transmission, :mileage, :registration, :color))");
+    q.bindValue(":owner",          v.owner);
+    q.bindValue(":phone",          v.phone);
+    q.bindValue(":make_model",     v.makeModel);
     q.bindValue(":chassis_number", v.chassisNumber);
-    q.bindValue(":year", v.year);
+    q.bindValue(":year",           v.year);
     q.bindValue(":engine_power_kw", v.enginePowerKw);
-    q.bindValue(":transmission", v.transmission);
-    q.bindValue(":mileage", v.mileage);
-    q.bindValue(":registration", v.registration);
-    q.bindValue(":color", v.color);
+    q.bindValue(":transmission",   v.transmission);
+    q.bindValue(":mileage",        v.mileage);
+    q.bindValue(":registration",   v.registration);
+    q.bindValue(":color",          v.color);
     if (q.exec()) return q.lastInsertId().toInt();
     return -1;
 }
@@ -95,19 +100,20 @@ int Database::vehicleIdByChassisNumber(const QString& chassisNumber) {
 bool Database::updateVehicle(int id, const VehicleData& v) {
     QSqlQuery q;
     q.prepare(R"(UPDATE vehicles SET
-        owner=:owner, make_model=:make_model, year=:year,
+        owner=:owner, phone=:phone, make_model=:make_model, year=:year,
         engine_power_kw=:engine_power_kw, transmission=:transmission,
         mileage=:mileage, registration=:registration, color=:color
         WHERE id=:id)");
-    q.bindValue(":owner", v.owner);
-    q.bindValue(":make_model", v.makeModel);
-    q.bindValue(":year", v.year);
+    q.bindValue(":owner",           v.owner);
+    q.bindValue(":phone",           v.phone);
+    q.bindValue(":make_model",      v.makeModel);
+    q.bindValue(":year",            v.year);
     q.bindValue(":engine_power_kw", v.enginePowerKw);
-    q.bindValue(":transmission", v.transmission);
-    q.bindValue(":mileage", v.mileage);
-    q.bindValue(":registration", v.registration);
-    q.bindValue(":color", v.color);
-    q.bindValue(":id", id);
+    q.bindValue(":transmission",    v.transmission);
+    q.bindValue(":mileage",         v.mileage);
+    q.bindValue(":registration",    v.registration);
+    q.bindValue(":color",           v.color);
+    q.bindValue(":id",              id);
     return q.exec();
 }
 
@@ -117,14 +123,16 @@ QList<VehicleData> Database::searchVehicles(const QString& query) {
     QString escaped = query;
     escaped.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     QString pattern = "%" + escaped + "%";
-    q.prepare(R"(SELECT id, owner, make_model, chassis_number, year, engine_power_kw,
+    q.prepare(R"(SELECT id, owner, phone, make_model, chassis_number, year, engine_power_kw,
         transmission, mileage, registration, color, created_at
         FROM vehicles
-        WHERE make_model LIKE :mm ESCAPE '\' OR chassis_number LIKE :cn ESCAPE '\' OR registration LIKE :reg ESCAPE '\'
+        WHERE make_model LIKE :mm ESCAPE '\' OR chassis_number LIKE :cn ESCAPE '\'
+           OR registration LIKE :reg ESCAPE '\' OR phone LIKE :phone ESCAPE '\'
         ORDER BY created_at DESC)");
-    q.bindValue(":mm", pattern);
-    q.bindValue(":cn", pattern);
-    q.bindValue(":reg", pattern);
+    q.bindValue(":mm",    pattern);
+    q.bindValue(":cn",    pattern);
+    q.bindValue(":reg",   pattern);
+    q.bindValue(":phone", pattern);
     q.exec();
     while (q.next()) results.append(rowToVehicle(q));
     return results;
@@ -132,7 +140,7 @@ QList<VehicleData> Database::searchVehicles(const QString& query) {
 
 VehicleData Database::vehicleById(int id) {
     QSqlQuery q;
-    q.prepare(R"(SELECT id, owner, make_model, chassis_number, year, engine_power_kw,
+    q.prepare(R"(SELECT id, owner, phone, make_model, chassis_number, year, engine_power_kw,
         transmission, mileage, registration, color, created_at
         FROM vehicles WHERE id = :id)");
     q.bindValue(":id", id);
@@ -145,15 +153,16 @@ VehicleData Database::rowToVehicle(const QSqlQuery& q) {
     VehicleData v;
     v.id            = q.value(0).toInt();
     v.owner         = q.value(1).toString();
-    v.makeModel     = q.value(2).toString();
-    v.chassisNumber = q.value(3).toString();
-    v.year          = q.value(4).toString();
-    v.enginePowerKw = q.value(5).toString();
-    v.transmission  = q.value(6).toString();
-    v.mileage       = q.value(7).toString();
-    v.registration  = q.value(8).toString();
-    v.color         = q.value(9).toString();
-    v.createdAt     = q.value(10).toString();
+    v.phone         = q.value(2).toString();
+    v.makeModel     = q.value(3).toString();
+    v.chassisNumber = q.value(4).toString();
+    v.year          = q.value(5).toString();
+    v.enginePowerKw = q.value(6).toString();
+    v.transmission  = q.value(7).toString();
+    v.mileage       = q.value(8).toString();
+    v.registration  = q.value(9).toString();
+    v.color         = q.value(10).toString();
+    v.createdAt     = q.value(11).toString();
     return v;
 }
 
