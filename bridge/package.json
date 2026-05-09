@@ -1,0 +1,33 @@
+{
+  "name": "bridge",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "electron dist/main.js",
+    "dev": "tsx watch src/main.ts",
+    "test": "vitest run",
+    "electron:build": "electron-builder --config electron-builder.json5",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.556.0",
+    "better-sqlite3": "^9.4.3",
+    "electron-updater": "^6.1.8",
+    "jsonwebtoken": "^9.0.2",
+    "serialport": "^12.0.0",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.10",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.12.8",
+    "@types/ws": "^8.5.10",
+    "electron": "^30.0.1",
+    "electron-builder": "^24.13.3",
+    "tsx": "^4.9.3",
+    "typescript": "^5.4.5",
+    "vitest": "^1.5.2"
+  }
+}

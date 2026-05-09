@@ -1,0 +1,35 @@
+{
+  appId: "com.yourcompany.vehiclebridge",
+  productName: "Vehicle Card Bridge",
+  copyright: "Copyright © 2026",
+
+  directories: {
+    output: "dist-electron",
+    buildResources: "build",
+  },
+
+  files: ["dist/**/*", "renderer/**/*", "package.json"],
+
+  win: {
+    target: [{ target: "nsis", arch: ["x64"] }],
+    icon: "build/icon.ico",
+    signingHashAlgorithms: ["sha256"],
+  },
+
+  nsis: {
+    oneClick: false,
+    allowToChangeInstallationDirectory: true,
+    installerIcon: "build/icon.ico",
+    uninstallerIcon: "build/icon.ico",
+  },
+
+  publish: [
+    {
+      provider: "github",
+      owner: "yourorg",
+      repo: "vehicle-card-bridge",
+    },
+  ],
+
+  afterSign: "scripts/notarize.js",
+}

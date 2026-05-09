@@ -1,0 +1,186 @@
+version: "3.9"
+
+x-logging: &default-logging
+  driver: "json-file"
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vehicleapp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-postgres.sql:/docker-entrypoint-initdb.d/00_init.sql:ro
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+  pgbouncer:
+    image: bitnami/pgbouncer:1.22.1
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: vehicleapp
+      POSTGRESQL_USERNAME: app_role
+      POSTGRESQL_PASSWORD: app_role_password
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 500
+      PGBOUNCER_DEFAULT_POOL_SIZE: 25
+    ports: ["6432:6432"]
+    logging: *default-logging
+
+  flyway:
+    image: flyway/flyway:10-alpine
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes:
+      - ../db/migrations:/flyway/sql:ro
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/vehicleapp
+      FLYWAY_USER: migration_role
+      FLYWAY_PASSWORD: migration_role_password
+      FLYWAY_SCHEMAS: public
+    command: migrate
+    logging: *default-logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *default-logging
+
+  localstack:
+    image: localstack/localstack:3.4
+    restart: unless-stopped
+    environment:
+      SERVICES: s3,sqs
+      DEFAULT_REGION: eu-west-1
+      LOCALSTACK_HOST: localstack
+    ports: ["4566:4566"]
+    volumes:
+      - ./localstack-init.sh:/etc/localstack/init/ready.d/init.sh:ro
+      - localstack_data:/var/lib/localstack
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:4566/_localstack/health | grep -q '\"s3\": \"available\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    logging: *default-logging
+
+  api:
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      pgbouncer:  { condition: service_started }
+      redis:      { condition: service_healthy }
+      localstack: { condition: service_healthy }
+      flyway:     { condition: service_completed_successfully }
+    environment:
+      DATABASE_URL: postgresql://app_role:app_role_password@pgbouncer:6432/vehicleapp
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-secret-change-in-prod
+      AWS_REGION: eu-west-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      S3_RAW_DUMP_BUCKET: vehicle-dumps
+      SQS_CARD_READ_QUEUE_URL: http://localstack:4566/000000000000/card-reads
+      SQS_BILLING_QUEUE_URL: http://localstack:4566/000000000000/billing-events
+      SQS_REPORT_QUEUE_URL: http://localstack:4566/000000000000/reports
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      NODE_ENV: development
+      PORT: 3000
+    ports: ["3000:3000"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+  worker:
+    build:
+      context: ../worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://app_role:app_role_password@pgbouncer:6432/vehicleapp
+      REDIS_URL: redis://redis:6379
+      AWS_REGION: eu-west-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      S3_REPORTS_BUCKET: vehicle-reports
+      SQS_CARD_READ_QUEUE_URL: http://localstack:4566/000000000000/card-reads
+      SQS_BILLING_QUEUE_URL: http://localstack:4566/000000000000/billing-events
+      SQS_REPORT_QUEUE_URL: http://localstack:4566/000000000000/reports
+      SQS_DLQ_URL: http://localstack:4566/000000000000/dead-letter
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      NODE_ENV: development
+    logging: *default-logging
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.100.0
+    restart: unless-stopped
+    volumes:
+      - ./otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"  # gRPC
+      - "4318:4318"  # HTTP
+    logging: *default-logging
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports: ["9090:9090"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    logging: *default-logging
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    restart: unless-stopped
+    depends_on: [prometheus]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports: ["3001:3000"]
+    logging: *default-logging
+
+volumes:
+  postgres_data:
+  redis_data:
+  localstack_data:
+  prometheus_data:
+  grafana_data:

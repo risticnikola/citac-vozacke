@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API — lint, type-check, test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vehicleapp_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=3s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm", cache-dependency-path: api/package.json }
+      - run: npm ci
+        working-directory: api
+      - run: npx tsc --noEmit
+        working-directory: api
+      - run: npm test -- --reporter=verbose
+        working-directory: api
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vehicleapp_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret
+          NODE_ENV: test
+
+  worker:
+    name: Worker — lint, type-check, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm", cache-dependency-path: worker/package.json }
+      - run: npm ci
+        working-directory: worker
+      - run: npx tsc --noEmit
+        working-directory: worker
+      - run: npm test -- --reporter=verbose
+        working-directory: worker
+        env: { NODE_ENV: test }
+
+  bridge:
+    name: Bridge — lint, type-check, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm", cache-dependency-path: bridge/package.json }
+      - run: npm ci
+        working-directory: bridge
+      - run: npx tsc --noEmit
+        working-directory: bridge
+      - run: npm test -- --reporter=verbose
+        working-directory: bridge
+        env: { NODE_ENV: test }
+
+  docker-build:
+    name: Docker build smoke test
+    runs-on: ubuntu-latest
+    needs: [api, worker]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -t vehicle-api:ci api/
+      - name: Build Worker image
+        run: docker build -t vehicle-worker:ci worker/
+      - name: Scan API image for critical CVEs
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: vehicle-api:ci
+          format: table
+          exit-code: "1"
+          severity: CRITICAL
+
+  migrations:
+    name: Flyway migration smoke test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vehicleapp_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Flyway migrations
+        run: |
+          docker run --rm --network host \
+            -v ${{ github.workspace }}/db/migrations:/flyway/sql:ro \
+            flyway/flyway:10-alpine \
+            -url=jdbc:postgresql://localhost:5432/vehicleapp_test \
+            -user=postgres -password=postgres \
+            -schemas=public migrate

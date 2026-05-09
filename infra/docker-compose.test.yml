@@ -1,0 +1,48 @@
+version: "3.9"
+# Slim compose used in CI — no grafana/otel, ephemeral volumes
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vehicleapp_test
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  flyway:
+    image: flyway/flyway:10-alpine
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes:
+      - ../db/migrations:/flyway/sql:ro
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/vehicleapp_test
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD: postgres
+      FLYWAY_SCHEMAS: public
+    command: migrate
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  localstack:
+    image: localstack/localstack:3.4
+    environment:
+      SERVICES: s3,sqs
+      DEFAULT_REGION: eu-west-1
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health | grep -q available"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
