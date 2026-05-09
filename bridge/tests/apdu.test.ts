@@ -1,6 +1,6 @@
 // bridge/tests/apdu.test.ts
 import { describe, it, expect } from 'vitest';
-import { buildApdu, parseApduResponse, TACHOGRAPH_APDUS } from '../src/bridge/apdu.js';
+import { buildApdu, parseApduResponse, ISO7816 } from '../src/bridge/apdu.js';
 
 describe('buildApdu', () => {
   it('builds a 4-byte command with no data and no Le', () => {
@@ -42,19 +42,23 @@ describe('parseApduResponse', () => {
   });
 });
 
-describe('TACHOGRAPH_APDUS', () => {
+describe('ISO7816 helpers', () => {
   it('selectMasterFile produces correct bytes', () => {
-    expect(TACHOGRAPH_APDUS.selectMasterFile()).toEqual(
+    expect(ISO7816.selectMasterFile()).toEqual(
       Buffer.from([0x00, 0xA4, 0x00, 0x0C]),
     );
   });
 
-  it('readBinary encodes offset correctly', () => {
-    const buf = TACHOGRAPH_APDUS.readBinary(0x0100, 0x20);
-    expect(buf[0]).toBe(0x00); // CLA
-    expect(buf[1]).toBe(0xB0); // INS
-    expect(buf[2]).toBe(0x01); // P1 = high byte of offset
-    expect(buf[3]).toBe(0x00); // P2 = low byte of offset
+  it('readBinary encodes 2-byte offset correctly', () => {
+    const buf = ISO7816.readBinary(0x0100, 0x20);
+    expect(buf[2]).toBe(0x01); // P1 = high byte
+    expect(buf[3]).toBe(0x00); // P2 = low byte
     expect(buf[4]).toBe(0x20); // Le
+  });
+
+  it('selectEfById encodes the file ID bytes', () => {
+    const fileId = Buffer.from([0x00, 0x02]);
+    const buf = ISO7816.selectEfById(fileId);
+    expect(buf.slice(5, 7)).toEqual(fileId);
   });
 });

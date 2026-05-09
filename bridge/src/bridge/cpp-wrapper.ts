@@ -35,8 +35,9 @@ export class CppWrapper extends EventEmitter {
   private pendingReject: ((e: Error) => void) | null = null;
   private responseTimer: NodeJS.Timeout | null = null;
 
-  async start(): Promise<void> {
-    this.proc = spawn(BINARY_PATH, [], {
+  async start(readerName?: string): Promise<void> {
+    const args = readerName ? ['--reader', readerName] : [];
+    this.proc = spawn(BINARY_PATH, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     });

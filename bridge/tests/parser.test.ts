@@ -1,43 +1,72 @@
 // bridge/tests/parser.test.ts
 import { describe, it, expect } from 'vitest';
-import { parseVehicleCard, parseDriverCard } from '../src/bridge/parser.js';
+import { parseCardOutput, mapCardType } from '../src/bridge/parser.js';
 
-describe('parseVehicleCard', () => {
-  it('returns empty ParsedCard for short buffer', () => {
-    const result = parseVehicleCard(Buffer.alloc(5));
-    expect(result.cardType).toBe('vehicle');
-    expect(result.vin).toBeUndefined();
+describe('mapCardType', () => {
+  it('maps "vehicle_registration" correctly', () => {
+    expect(mapCardType('vehicle_registration')).toBe('vehicle_registration');
+    expect(mapCardType('vehicleregistration')).toBe('vehicle_registration');
+    expect(mapCardType('registration')).toBe('vehicle_registration');
   });
 
-  it('parses vehicle registration nation and number', () => {
-    const buf = Buffer.alloc(64, 0);
-    buf.write('DEU', 0, 'ascii');
-    buf.write('HH-AB-1234\0\0\0', 3, 'latin1');
-    const r = parseVehicleCard(buf);
-    expect(r.vehicleRegistrationNation).toBe('DEU');
-    expect(r.vehicleRegistrationNumber).toBe('HH-AB-1234');
+  it('maps "id_card" variants correctly', () => {
+    expect(mapCardType('id_card')).toBe('id_card');
+    expect(mapCardType('idcard')).toBe('id_card');
+    expect(mapCardType('identity')).toBe('id_card');
   });
 
-  it('parses VIN at offset 16', () => {
-    const buf = Buffer.alloc(64, 0);
-    const vin = 'WBA3A5C55EF123456';
-    buf.write(vin, 16, 'ascii');
-    const r = parseVehicleCard(buf);
-    expect(r.vin).toBe(vin);
+  it('falls back to "other" for unknown values', () => {
+    expect(mapCardType('unknown')).toBe('other');
+    expect(mapCardType(undefined)).toBe('other');
   });
 });
 
-describe('parseDriverCard', () => {
-  it('returns empty ParsedCard for short buffer', () => {
-    const result = parseDriverCard(Buffer.alloc(10));
-    expect(result.cardType).toBe('driver');
+describe('parseCardOutput', () => {
+  it('maps all standard vehicle registration fields', () => {
+    const raw = {
+      vehicleIdNumber: 'WBA3A5C55EF123456',
+      registrationPlateNumber: 'NS-123-AB',
+      vehicleMake: 'BMW',
+      commercialDescription: 'Serija 3',
+      yearOfProduction: '2020',
+      engineCapacity: '1998',
+      maximumNetPower: '110',
+      typeOfFuel: 'Dizel',
+      stateIssuing: 'SRB',
+      dateOfFirstRegistration: '15.01.2020',
+      expiryDate: '2025-01-15',
+      ownersSurnameOrBusinessName: 'Petrović',
+      ownersFirstName: 'Milan',
+    };
+
+    const result = parseCardOutput(raw);
+
+    expect(result.vehicleIdNumber).toBe('WBA3A5C55EF123456');
+    expect(result.registrationPlateNumber).toBe('NS-123-AB');
+    expect(result.yearOfProduction).toBe(2020);
+    expect(result.engineCapacity).toBe(1998);
+    expect(result.maximumNetPower).toBe(110);
+    // Serbian DD.MM.YYYY → ISO
+    expect(result.dateOfFirstRegistration).toBe('2020-01-15');
+    // Already ISO
+    expect(result.expiryDate).toBe('2025-01-15');
+    expect(result.ownersSurnameOrBusinessName).toBe('Petrović');
   });
 
-  it('parses holder surname', () => {
-    const buf = Buffer.alloc(100, 0);
-    buf[0] = 0x00; // code page
-    buf.write('MUSTERMANN', 1, 'latin1');
-    const r = parseDriverCard(buf);
-    expect(r.holderSurname).toContain('MUSTERMANN');
+  it('coerces string numbers to integers', () => {
+    const r = parseCardOutput({ massInService: '1560', numberOfAxles: '2' });
+    expect(r.massInService).toBe(1560);
+    expect(r.numberOfAxles).toBe(2);
+  });
+
+  it('returns undefined for empty string fields', () => {
+    const r = parseCardOutput({ vehicleIdNumber: '' });
+    expect(r.vehicleIdNumber).toBeUndefined();
+  });
+
+  it('handles completely empty input gracefully', () => {
+    const r = parseCardOutput({});
+    expect(r.vehicleIdNumber).toBeUndefined();
+    expect(r.yearOfProduction).toBeUndefined();
   });
 });

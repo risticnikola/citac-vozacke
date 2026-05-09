@@ -1,83 +1,94 @@
 // bridge/src/bridge/parser.ts
-// Parses raw EU tachograph card binary dumps per Regulation 2016/799 Annex 1C
-import type { CardType } from '../types.js';
+// Maps the JSON output of the C++ binary (eVehicleRegistrationAPI.dll) to our
+// internal VehicleRegistrationData shape. All binary parsing is done by the
+// DLL — this module only normalises field names and coerces types.
+import type { VehicleRegistrationData, CardType } from '../types.js';
 
-export interface ParsedCard {
-  cardType: CardType;
+/** Raw JSON object as the C++ binary writes it to stdout. */
+export interface CppCardOutput {
+  cardType?: string;
   cardSerial?: string;
-  holderSurname?: string;
-  holderFirstName?: string;
-  birthDate?: string;
-  licenceNumber?: string;
-  issuingCountry?: string;
+  rawDump?: string; // hex-encoded
+
+  // Vehicle — field names from the eVehicleRegistrationAPI spec
+  vehicleIdNumber?: string;
+  registrationPlateNumber?: string;
+  vehicleCategory?: string;
+  vehicleMake?: string;
+  commercialDescription?: string;
+  colourOfVehicle?: string;
+  yearOfProduction?: string | number;
+
+  // Technical
+  engineCapacity?: string | number;
+  maximumNetPower?: string | number;
+  typeOfFuel?: string;
+  massInService?: string | number;
+  numberOfAxles?: string | number;
+
+  // Registration
+  stateIssuing?: string;
+  competentAuthority?: string;
+  dateOfFirstRegistration?: string;
+  registrationDate?: string;
   expiryDate?: string;
-  vehicleRegistrationNation?: string;
-  vehicleRegistrationNumber?: string;
-  vin?: string;
+
+  // Owner (PII — stored encrypted in production)
+  ownersSurnameOrBusinessName?: string;
+  ownersFirstName?: string;
+  ownersAddress?: string;
+  personalNo?: string;
 }
 
-function readBcdDate(buf: Buffer, offset: number): string | undefined {
-  if (offset + 4 > buf.length) return undefined;
-  // TimeReal encoding: seconds since 1970-01-01 00:00:00 UTC (4 bytes big-endian)
-  const secs = buf.readUInt32BE(offset);
-  if (secs === 0 || secs === 0xFFFFFFFF) return undefined;
-  return new Date(secs * 1000).toISOString().slice(0, 10);
-}
-
-function readString(buf: Buffer, offset: number, maxLen: number): string {
-  const end = Math.min(offset + maxLen, buf.length);
-  const slice = buf.subarray(offset, end);
-  // CodePage24 encoding: first byte is code page, rest is IA5 string
-  const codePage = slice[0];
-  const text = slice.subarray(1).toString('latin1').replace(/\0+$/, '').trim();
-  void codePage; // code page handling left for full implementation
-  return text;
-}
-
-export function parseVehicleCard(dump: Buffer): ParsedCard {
-  // EF_Identification starts at offset 0 in a pre-concatenated dump.
-  // In production this must be keyed by EF_ID offsets from a read session map.
-  const result: ParsedCard = { cardType: 'vehicle' };
-
-  if (dump.length < 10) return result;
-
-  // Vehicle registration (offset 0..13): nation (3 bytes IA5) + number (13 bytes)
-  result.vehicleRegistrationNation = dump.subarray(0, 3).toString('ascii').replace(/\0+$/, '').trim();
-  result.vehicleRegistrationNumber = dump.subarray(3, 16).toString('latin1').replace(/\0+$/, '').trim();
-
-  // VIN at offset 16 (17 bytes)
-  if (dump.length >= 33) {
-    result.vin = dump.subarray(16, 33).toString('ascii').replace(/\0+$/, '').trim();
+export function mapCardType(raw: string | undefined): CardType {
+  switch (raw?.toLowerCase()) {
+    case 'vehicle_registration':
+    case 'vehicleregistration':
+    case 'registration': return 'vehicle_registration';
+    case 'id_card':
+    case 'idcard':
+    case 'identity': return 'id_card';
+    default: return 'other';
   }
-
-  return result;
 }
 
-export function parseDriverCard(dump: Buffer): ParsedCard {
-  const result: ParsedCard = { cardType: 'driver' };
-  if (dump.length < 40) return result;
-
-  // Holder surname at offset 0 (36 bytes CodePage24)
-  result.holderSurname = readString(dump, 0, 36);
-  // First names at offset 36 (36 bytes)
-  result.holderFirstName = readString(dump, 36, 36);
-  // Birth date at offset 72 (4 bytes TimeReal)
-  result.birthDate = readBcdDate(dump, 72);
-  // Preferred language at offset 76 (2 bytes IA5) — skipped for now
-  // Expiry date at offset 78 (4 bytes TimeReal)
-  result.expiryDate = readBcdDate(dump, 78);
-  // Issuing country at offset 82 (3 bytes IA5)
-  if (dump.length >= 85) {
-    result.issuingCountry = dump.subarray(82, 85).toString('ascii').replace(/\0+$/, '').trim();
-  }
-
-  return result;
+function toInt(v: string | number | undefined): number | undefined {
+  if (v === undefined || v === null || v === '') return undefined;
+  const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+  return isNaN(n) ? undefined : n;
 }
 
-export function parseCardDump(dump: Buffer, cardType: CardType): ParsedCard {
-  switch (cardType) {
-    case 'vehicle':  return parseVehicleCard(dump);
-    case 'driver':   return parseDriverCard(dump);
-    default:         return { cardType };
-  }
+function toDate(v: string | undefined): string | undefined {
+  if (!v) return undefined;
+  // Accept YYYY-MM-DD or DD.MM.YYYY (Serbian format)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const m = v.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return v;
+}
+
+export function parseCardOutput(raw: CppCardOutput): VehicleRegistrationData {
+  return {
+    vehicleIdNumber:              raw.vehicleIdNumber?.trim()                    || undefined,
+    registrationPlateNumber:      raw.registrationPlateNumber?.trim()            || undefined,
+    vehicleCategory:              raw.vehicleCategory?.trim()                    || undefined,
+    vehicleMake:                  raw.vehicleMake?.trim()                        || undefined,
+    commercialDescription:        raw.commercialDescription?.trim()              || undefined,
+    colourOfVehicle:              raw.colourOfVehicle?.trim()                   || undefined,
+    yearOfProduction:             toInt(raw.yearOfProduction),
+    engineCapacity:               toInt(raw.engineCapacity),
+    maximumNetPower:              toInt(raw.maximumNetPower),
+    typeOfFuel:                   raw.typeOfFuel?.trim()                         || undefined,
+    massInService:                toInt(raw.massInService),
+    numberOfAxles:                toInt(raw.numberOfAxles),
+    stateIssuing:                 raw.stateIssuing?.trim()                       || undefined,
+    competentAuthority:           raw.competentAuthority?.trim()                 || undefined,
+    dateOfFirstRegistration:      toDate(raw.dateOfFirstRegistration),
+    registrationDate:             toDate(raw.registrationDate),
+    expiryDate:                   toDate(raw.expiryDate),
+    ownersSurnameOrBusinessName:  raw.ownersSurnameOrBusinessName?.trim()        || undefined,
+    ownersFirstName:              raw.ownersFirstName?.trim()                    || undefined,
+    ownersAddress:                raw.ownersAddress?.trim()                      || undefined,
+    personalNo:                   raw.personalNo?.trim()                         || undefined,
+  };
 }

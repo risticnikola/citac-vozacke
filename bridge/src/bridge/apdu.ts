@@ -1,5 +1,8 @@
 // bridge/src/bridge/apdu.ts
-// ISO 7816-4 APDU command builder for EU tachograph cards
+// Generic ISO 7816-4 APDU command builder.
+// The C++ binary (eVehicleRegistrationAPI.dll) handles all card communication
+// for the vehicle registration use case; this module is kept for low-level
+// diagnostics and future card-type extensions.
 
 export interface ApduCommand {
   cla: number;   // Class byte
@@ -20,7 +23,9 @@ export function buildApdu(cmd: ApduCommand): Buffer {
   return Buffer.from(parts);
 }
 
-export function parseApduResponse(buf: Buffer): { data: Buffer; sw1: number; sw2: number; ok: boolean } {
+export function parseApduResponse(buf: Buffer): {
+  data: Buffer; sw1: number; sw2: number; ok: boolean;
+} {
   if (buf.length < 2) throw new Error('APDU response too short');
   const sw1 = buf[buf.length - 2];
   const sw2 = buf[buf.length - 1];
@@ -32,39 +37,14 @@ export function parseApduResponse(buf: Buffer): { data: Buffer; sw1: number; sw2
   };
 }
 
-// EU tachograph EF file identifiers per EU Regulation 2016/799 Annex 1C
-export const TACHOGRAPH_APDUS = {
-  selectMasterFile: (): Buffer => buildApdu({ cla: 0x00, ins: 0xA4, p1: 0x00, p2: 0x0C }),
-  selectEf: (fileId: Buffer): Buffer => buildApdu({
-    cla: 0x00, ins: 0xA4, p1: 0x02, p2: 0x04, data: fileId,
-  }),
-  readBinary: (offset: number, length: number): Buffer => buildApdu({
-    cla: 0x00, ins: 0xB0,
-    p1: (offset >> 8) & 0x7F,
-    p2: offset & 0xFF,
-    le: length,
-  }),
-  getChallenge: (): Buffer => buildApdu({ cla: 0x00, ins: 0x84, p1: 0x00, p2: 0x00, le: 0x08 }),
-  verifyPin: (pin: Buffer): Buffer => buildApdu({
-    cla: 0x00, ins: 0x20, p1: 0x00, p2: 0x01, data: pin,
-  }),
-} as const;
-
-export const EF_IDS = {
-  ICC:             Buffer.from([0x00, 0x02]),
-  IC_Manufacturing: Buffer.from([0x00, 0x05]),
-  Application_Identification: Buffer.from([0x05, 0x01]),
-  Card_Certificate:           Buffer.from([0xC1, 0x00]),
-  CA_Certificate:             Buffer.from([0xC1, 0x08]),
-  Identification:             Buffer.from([0x05, 0x20]),
-  Card_Download:              Buffer.from([0x05, 0x0E]),
-  Driving_Licence_Info:       Buffer.from([0x05, 0x21]),
-  Events_Data:                Buffer.from([0x05, 0x02]),
-  Faults_Data:                Buffer.from([0x05, 0x03]),
-  Driver_Activity_Data:       Buffer.from([0x05, 0x04]),
-  Vehicles_Used:              Buffer.from([0x05, 0x05]),
-  Places:                     Buffer.from([0x05, 0x06]),
-  Current_Usage:              Buffer.from([0x05, 0x07]),
-  Control_Activity_Data:      Buffer.from([0x05, 0x08]),
-  Specific_Conditions:        Buffer.from([0x05, 0x22]),
+/** Standard ISO 7816-4 commands for diagnostic use */
+export const ISO7816 = {
+  selectMasterFile: (): Buffer =>
+    buildApdu({ cla: 0x00, ins: 0xA4, p1: 0x00, p2: 0x0C }),
+  selectEfById: (fileId: Buffer): Buffer =>
+    buildApdu({ cla: 0x00, ins: 0xA4, p1: 0x02, p2: 0x04, data: fileId }),
+  readBinary: (offset: number, length: number): Buffer =>
+    buildApdu({ cla: 0x00, ins: 0xB0, p1: (offset >> 8) & 0x7F, p2: offset & 0xFF, le: length }),
+  getChallenge: (): Buffer =>
+    buildApdu({ cla: 0x00, ins: 0x84, p1: 0x00, p2: 0x00, le: 0x08 }),
 } as const;

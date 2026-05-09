@@ -1,45 +1,44 @@
 // bridge/src/bridge/port-manager.ts
-import { SerialPort } from 'serialport';
+// Manages the active CardReader session. For USB PC/SC smart card readers the
+// "port" is a PC/SC reader name (e.g. "ACS ACR122U 00") — the C++ binary
+// enumerates available readers and accepts an optional name override.
 import { CardReader } from './card-reader.js';
 
-export interface PortInfo {
-  path: string;
-  manufacturer?: string;
-  serialNumber?: string;
-}
+let activeReader: CardReader | null = null;
+let activeReaderName: string | null = null;
 
-// Ensures at most one active CardReader per port path
-const activeSessions = new Map<string, CardReader>();
-
-export async function listPorts(): Promise<PortInfo[]> {
-  const ports = await SerialPort.list();
-  return ports.map((p) => ({
-    path: p.path,
-    manufacturer: p.manufacturer,
-    serialNumber: p.serialNumber,
-  }));
-}
-
-export async function openReader(portPath: string): Promise<CardReader> {
-  if (activeSessions.has(portPath)) {
-    throw new Error(`Port ${portPath} already in use`);
+/** Open the first available PC/SC reader (or a specific one by name). */
+export async function openReader(readerName?: string): Promise<CardReader> {
+  if (activeReader) {
+    throw new Error(
+      `Reader already open${activeReaderName ? ': ' + activeReaderName : ''}. Close it first.`,
+    );
   }
   const reader = new CardReader();
-  await reader.open(portPath);
-  activeSessions.set(portPath, reader);
-  reader.on('disconnect', () => activeSessions.delete(portPath));
+  await reader.open(readerName);
+  activeReader = reader;
+  activeReaderName = readerName ?? null;
+
+  reader.on('disconnect', () => {
+    activeReader = null;
+    activeReaderName = null;
+  });
+
   return reader;
 }
 
-export async function closeReader(portPath: string): Promise<void> {
-  const reader = activeSessions.get(portPath);
-  if (reader) {
-    await reader.close();
-    activeSessions.delete(portPath);
+export async function closeReader(): Promise<void> {
+  if (activeReader) {
+    await activeReader.close();
+    activeReader = null;
+    activeReaderName = null;
   }
 }
 
-export function getActivePort(): string | null {
-  const first = activeSessions.keys().next();
-  return first.done ? null : first.value;
+export function getActiveReaderName(): string | null {
+  return activeReaderName;
+}
+
+export function isReaderOpen(): boolean {
+  return activeReader !== null;
 }

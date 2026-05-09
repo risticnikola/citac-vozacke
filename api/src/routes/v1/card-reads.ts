@@ -12,8 +12,9 @@ export const cardReadsRoutes: FastifyPluginAsync = async (fastify) => {
         rawDump:    Type.String({ minLength: 1 }),
         cardSerial: Type.String({ maxLength: 64 }),
         cardType:   Type.Union([
-          Type.Literal('driver'), Type.Literal('vehicle'),
-          Type.Literal('workshop'), Type.Literal('control'),
+          Type.Literal('vehicle_registration'),
+          Type.Literal('id_card'),
+          Type.Literal('other'),
         ]),
       }),
       headers: Type.Object({ 'idempotency-key': Type.String({ minLength: 32, maxLength: 128 }) }),

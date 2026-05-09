@@ -10,12 +10,12 @@ import { openReader } from './bridge/port-manager.js';
 import type { BridgeConfig } from './types.js';
 
 const CONFIG: BridgeConfig = {
-  cloudApiUrl:    process.env.CLOUD_API_URL    ?? 'http://localhost:3000',
-  deviceId:       process.env.DEVICE_ID        ?? 'local-device',
+  cloudApiUrl:    process.env.CLOUD_API_URL     ?? 'http://localhost:3000',
+  deviceId:       process.env.DEVICE_ID         ?? 'local-device',
   privateKeyPem:  process.env.DEVICE_PRIVATE_KEY ?? '',
   httpPort:       parseInt(process.env.BRIDGE_HTTP_PORT ?? '4000', 10),
   wsPort:         parseInt(process.env.BRIDGE_WS_PORT   ?? '4001', 10),
-  allowedOrigins: (process.env.ALLOWED_ORIGINS ?? 'null').split(','),
+  allowedOrigins: (process.env.ALLOWED_ORIGINS  ?? 'null').split(','),
 };
 
 const DB_PATH = path.join(app.getPath('userData'), 'offline-queue.db');
@@ -48,13 +48,9 @@ app.whenReady().then(async () => {
 
   await win.loadFile('renderer/index.html');
 
-  ipcMain.handle('ports:list', async () => {
-    const { listPorts } = await import('./bridge/port-manager.js');
-    return listPorts();
-  });
-
-  ipcMain.handle('reader:start', async (_ev, portPath: string) => {
-    const reader = await openReader(portPath);
+  // IPC: start the reader (optional readerName to select a specific PC/SC reader)
+  ipcMain.handle('reader:start', async (_ev, readerName?: string) => {
+    const reader = await openReader(readerName);
     reader.on('card', async (cardData) => {
       const item = {
         deviceId: CONFIG.deviceId,
@@ -64,9 +60,22 @@ app.whenReady().then(async () => {
         idempotencyKey: `${CONFIG.deviceId}-${cardData.cardSerial}-${Date.now()}`,
       };
       enqueue(item);
-      broadcast(wss, { type: 'card.read', payload: { ...item, rawDump: undefined } });
+      broadcast(wss, {
+        type: 'card.read',
+        payload: {
+          cardType: cardData.cardType,
+          cardSerial: cardData.cardSerial,
+          parsedData: cardData.parsedData,
+        },
+      });
       cloudClient.drainQueue().catch(console.error);
     });
+    return { ok: true };
+  });
+
+  ipcMain.handle('reader:stop', async () => {
+    const { closeReader } = await import('./bridge/port-manager.js');
+    await closeReader();
     return { ok: true };
   });
 

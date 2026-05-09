@@ -65,7 +65,7 @@ CREATE TABLE card_reads (
   raw_dump_s3_key  TEXT        NOT NULL,
   parsed_data      JSONB       NOT NULL,
   card_serial      TEXT,
-  card_type        TEXT        CHECK (card_type IN ('driver','vehicle','workshop','control')),
+  card_type        TEXT        CHECK (card_type IN ('vehicle_registration','id_card','other')),
   read_status      TEXT        NOT NULL DEFAULT 'success'
                                CHECK (read_status IN ('success','partial','error')),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
