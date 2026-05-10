@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "electron dist/main.js",
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsc && electron dist/main.js",
     "test": "vitest run",
     "electron:build": "electron-builder --config electron-builder.json5",
     "lint": "eslint src --ext .ts"

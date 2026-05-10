@@ -1,4 +1,3 @@
-// bridge/src/main.ts — Electron main process
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
@@ -10,17 +9,26 @@ import { openReader } from './bridge/port-manager.js';
 import type { BridgeConfig } from './types.js';
 
 const CONFIG: BridgeConfig = {
-  cloudApiUrl:    process.env.CLOUD_API_URL     ?? 'http://localhost:3000',
-  deviceId:       process.env.DEVICE_ID         ?? 'local-device',
+  cloudApiUrl:    process.env.CLOUD_API_URL      ?? 'http://localhost:3000',
+  deviceId:       process.env.DEVICE_ID          ?? 'local-device',
   privateKeyPem:  process.env.DEVICE_PRIVATE_KEY ?? '',
   httpPort:       parseInt(process.env.BRIDGE_HTTP_PORT ?? '4000', 10),
   wsPort:         parseInt(process.env.BRIDGE_WS_PORT   ?? '4001', 10),
-  allowedOrigins: (process.env.ALLOWED_ORIGINS  ?? 'null').split(','),
+  allowedOrigins: (process.env.ALLOWED_ORIGINS   ?? 'null').split(','),
 };
 
 const DB_PATH = path.join(app.getPath('userData'), 'offline-queue.db');
 
+// Works in both dev (tsx, __dirname = src/) and built (electron, __dirname = dist/)
+const PRELOAD_PATH = app.isPackaged
+  ? path.join(__dirname, 'preload.js')
+  : path.join(__dirname, '..', 'dist', 'preload.js');
+
 let win: BrowserWindow | null = null;
+
+function sendToRenderer(channel: string, payload: unknown) {
+  win?.webContents.send(channel, payload);
+}
 
 app.whenReady().then(async () => {
   initQueue(DB_PATH);
@@ -32,50 +40,71 @@ app.whenReady().then(async () => {
   const httpServer = createHttpServer(cloudClient, CONFIG.httpPort);
   const wss = createWsServer(CONFIG.wsPort, CONFIG.allowedOrigins);
 
-  // Drain offline queue every 30 seconds
   setInterval(() => cloudClient.drainQueue().catch(console.error), 30_000);
 
-  // Auto-update check on startup + every 4 hours
   autoUpdater.checkForUpdatesAndNotify().catch(console.error);
   setInterval(() => autoUpdater.checkForUpdatesAndNotify().catch(console.error), 4 * 60 * 60 * 1000);
 
   win = new BrowserWindow({
-    width: 400,
-    height: 300,
-    webPreferences: { nodeIntegration: false, contextIsolation: true },
+    width: 480,
+    height: 520,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: PRELOAD_PATH,
+    },
     title: 'Vehicle Card Bridge',
   });
 
-  await win.loadFile('renderer/index.html');
+  await win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 
-  // IPC: start the reader (optional readerName to select a specific PC/SC reader)
   ipcMain.handle('reader:start', async (_ev, readerName?: string) => {
     const reader = await openReader(readerName);
+
+    sendToRenderer('reader:status', { connected: true, readerName: readerName ?? null });
+
     reader.on('card', async (cardData) => {
       const item = {
-        deviceId: CONFIG.deviceId,
-        cardSerial: cardData.cardSerial,
-        cardType: cardData.cardType,
-        rawDump: cardData.rawDump,
+        deviceId:       CONFIG.deviceId,
+        cardSerial:     cardData.cardSerial,
+        cardType:       cardData.cardType,
+        rawDump:        cardData.rawDump,
+        parsedData:     cardData.parsedData,
         idempotencyKey: `${CONFIG.deviceId}-${cardData.cardSerial}-${Date.now()}`,
       };
       enqueue(item);
       broadcast(wss, {
         type: 'card.read',
         payload: {
-          cardType: cardData.cardType,
+          cardType:   cardData.cardType,
           cardSerial: cardData.cardSerial,
           parsedData: cardData.parsedData,
         },
       });
+      sendToRenderer('card:data', {
+        cardType:   cardData.cardType,
+        cardSerial: cardData.cardSerial,
+        parsedData: cardData.parsedData,
+      });
       cloudClient.drainQueue().catch(console.error);
     });
+
+    reader.on('disconnect', (code) => {
+      sendToRenderer('reader:status', { connected: false });
+      sendToRenderer('reader:error', `Reader disconnected (exit code ${code})`);
+    });
+
+    reader.on('error', (err: Error) => {
+      sendToRenderer('reader:error', err.message);
+    });
+
     return { ok: true };
   });
 
   ipcMain.handle('reader:stop', async () => {
     const { closeReader } = await import('./bridge/port-manager.js');
     await closeReader();
+    sendToRenderer('reader:status', { connected: false });
     return { ok: true };
   });
 

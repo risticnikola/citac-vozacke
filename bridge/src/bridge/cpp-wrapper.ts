@@ -22,8 +22,9 @@ interface CppResponse {
   error?: string;
 }
 
+const BINARY_NAME = 'citacVozacke' + (process.platform === 'win32' ? '.exe' : '');
 const BINARY_PATH = process.env.CPP_BINARY_PATH
-  ?? path.join(process.resourcesPath ?? '.', 'native', 'citacVozacke');
+  ?? path.join(process.resourcesPath ?? '.', 'native', BINARY_NAME);
 
 const STARTUP_TIMEOUT_MS = 5_000;
 const RESPONSE_TIMEOUT_MS = 20_000;

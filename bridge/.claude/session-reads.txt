@@ -6,3 +6,8 @@
 /home/nikola/Desktop/citacVozacke/db/migrations/V4__partition_card_reads.sql
 /home/nikola/Desktop/citacVozacke/db/migrations/V3__indexes.sql
 /home/nikola/Desktop/citacVozacke/bridge/src/main.ts
+/home/nikola/Desktop/citacVozacke/citacVozacke/main.cpp
+/home/nikola/Desktop/citacVozacke/citacVozacke/eVehicleRegistrationAPI.h
+/home/nikola/Desktop/citacVozacke/docs/superpowers/plans/2026-05-09-vehicle-card-saas-platform.md
+/home/nikola/Desktop/citacVozacke/worker/src/services/pdf-generator.service.ts
+/home/nikola/Desktop/citacVozacke/worker/Dockerfile

@@ -20,8 +20,8 @@ export async function handleBillingEvent(msg: Message): Promise<void> {
   await withTenantContext(pool, tenantId, async (client) => {
     // Idempotent upsert — V5 migration added UNIQUE(card_read_id)
     await client.query(
-      `INSERT INTO billing_events (tenant_id, card_read_id, event_type, amount_cents)
-       VALUES ($1, $2, 'card_read', 10)
+      `INSERT INTO billing_events (tenant_id, card_read_id, event_type, amount_units)
+       VALUES ($1, $2, 'card_read', 1)
        ON CONFLICT (card_read_id) DO NOTHING`,
       [tenantId, cardReadId],
     );

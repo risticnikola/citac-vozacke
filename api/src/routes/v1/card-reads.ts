@@ -13,6 +13,7 @@ const CardReadBodySchema = Type.Object({
     Type.Literal('id_card'),
     Type.Literal('other'),
   ]),
+  parsedData: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
 });
 type CardReadBody = Static<typeof CardReadBodySchema>;
 
@@ -42,6 +43,7 @@ export const cardReadsRoutes: FastifyPluginAsync = async (fastify) => {
         rawDump: Buffer.from(req.body.rawDump, 'base64'),
         cardSerial: req.body.cardSerial, cardType: req.body.cardType,
         idempotencyKey: req.headers['idempotency-key'],
+        parsedData: req.body.parsedData ?? {},
       });
       cardReadTotal.inc({ tenant_id: tenantId, status: 'success' });
       stop({ status: 'success' });

@@ -15,12 +15,14 @@ const s3 = new S3Client({
 
 const BUCKET = process.env.S3_REPORTS_BUCKET!;
 
+// pdfmake delegates rendering to pdfkit, which ships 14 standard fonts including Helvetica.
+// Reference them by their pdfkit built-in names — no font files or VFS loading needed.
 const fonts = {
-  Roboto: {
-    normal: 'node_modules/pdfmake/build/vfs_fonts.js',
-    bold: 'node_modules/pdfmake/build/vfs_fonts.js',
-    italics: 'node_modules/pdfmake/build/vfs_fonts.js',
-    bolditalics: 'node_modules/pdfmake/build/vfs_fonts.js',
+  Helvetica: {
+    normal:      'Helvetica',
+    bold:        'Helvetica-Bold',
+    italics:     'Helvetica-Oblique',
+    bolditalics: 'Helvetica-BoldOblique',
   },
 };
 

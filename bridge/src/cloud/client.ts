@@ -36,6 +36,7 @@ export class CloudClient {
             rawDump: item.rawDump.toString('base64'),
             cardSerial: item.cardSerial,
             cardType: item.cardType,
+            parsedData: (item as any).parsedData,
           }),
           signal: AbortSignal.timeout(15_000),
         });
