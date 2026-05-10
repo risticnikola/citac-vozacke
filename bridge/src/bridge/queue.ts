@@ -41,8 +41,14 @@ export function enqueue(item: Omit<QueuedRead, 'id' | 'retryCount' | 'createdAt'
 export function dequeueReady(limit = 10): QueuedRead[] {
   const now = Date.now();
   return db.prepare(
-    `SELECT id, device_id, card_serial, card_type, raw_dump, idempotency_key,
-            retry_count, created_at
+    `SELECT id,
+            device_id       AS deviceId,
+            card_serial     AS cardSerial,
+            card_type       AS cardType,
+            raw_dump        AS rawDump,
+            idempotency_key AS idempotencyKey,
+            retry_count     AS retryCount,
+            created_at      AS createdAt
      FROM offline_queue
      WHERE next_retry_at <= ? AND retry_count < ?
      ORDER BY created_at ASC

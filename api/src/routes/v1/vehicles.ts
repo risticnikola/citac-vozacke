@@ -1,6 +1,6 @@
 // api/src/routes/v1/vehicles.ts
 import { FastifyPluginAsync } from 'fastify';
-import { Type } from '@sinclair/typebox';
+import { Type, Static } from '@sinclair/typebox';
 import { pool } from '../../db/client.js';
 import { withTenantContext } from '../../db/tenant-context.js';
 
@@ -13,16 +13,20 @@ const VehicleBody = Type.Object({
   ownerName:  Type.Optional(Type.String({ maxLength: 128 })),
   ownerPhone: Type.Optional(Type.String({ maxLength: 32 })),
 });
+type VehicleBodyType = Static<typeof VehicleBody>;
+
+const VehicleQuerySchema = Type.Object({
+  cursor: Type.Optional(Type.String()),
+  limit:  Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+  plate:  Type.Optional(Type.String()),
+  vin:    Type.Optional(Type.String()),
+});
+type VehicleQuery = Static<typeof VehicleQuerySchema>;
 
 export const vehiclesRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get('/', {
+  fastify.get<{ Querystring: VehicleQuery }>('/', {
     schema: {
-      querystring: Type.Object({
-        cursor: Type.Optional(Type.String()),
-        limit:  Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
-        plate:  Type.Optional(Type.String()),
-        vin:    Type.Optional(Type.String()),
-      }),
+      querystring: VehicleQuerySchema,
     },
     preHandler: [fastify.authenticate, fastify.requireTenantContext],
   }, async (req, reply) => {
@@ -72,7 +76,7 @@ export const vehiclesRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(rows[0]);
   });
 
-  fastify.post('/', {
+  fastify.post<{ Body: VehicleBodyType }>('/', {
     schema: { body: VehicleBody },
     preHandler: [fastify.authenticate, fastify.requireTenantContext],
   }, async (req, reply) => {
@@ -88,7 +92,7 @@ export const vehiclesRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.code(201).send(rows[0]);
   });
 
-  fastify.patch('/:id', {
+  fastify.patch<{ Body: VehicleBodyType }>('/:id', {
     schema: { body: VehicleBody },
     preHandler: [fastify.authenticate, fastify.requireTenantContext],
   }, async (req, reply) => {

@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="citacVozacke/citacVozacke.vcxproj" Id="3b504ef4-51f6-4911-9a32-9301949678ec" />
+</Solution>

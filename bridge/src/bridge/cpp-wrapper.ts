@@ -65,7 +65,7 @@ export class CppWrapper extends EventEmitter {
     ]);
   }
 
-  async readCard(port: string): Promise<CardData> {
+  async readCard(port?: string): Promise<CardData> {
     const resp = await this.send({ cmd: 'read_card', port });
     if (resp.type === 'error') throw new Error(resp.error ?? 'C++ read_card failed');
     if (!resp.cardSerial || !resp.cardType || !resp.rawDump) {

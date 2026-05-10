@@ -1,4 +1,5 @@
 // api/src/types/index.ts
+import type { FastifyRequest, FastifyReply } from 'fastify';
 
 export interface TenantJwtPayload {
   sub: string;
@@ -21,6 +22,10 @@ export interface DeviceJwtPayload {
 export type JwtPayload = TenantJwtPayload | DeviceJwtPayload;
 
 declare module 'fastify' {
+  interface FastifyInstance {
+    authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    requireTenantContext: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  }
   interface FastifyRequest {
     jwtPayload: JwtPayload;
     tenantId: string;

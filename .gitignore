@@ -2,3 +2,4 @@ build/
 *.def
 *.user
 .vs/
+node_modules

@@ -48,7 +48,7 @@ async function verifyDeviceToken(req: FastifyRequest, reply: FastifyReply, token
     );
     if (!rows.length) return reply.code(401).send({ error: 'Unknown device' });
     if (rows[0].revoked_at) return reply.code(401).send({ error: 'Device revoked' });
-    pem = rows[0].public_key_pem;
+    pem = rows[0].public_key_pem as string;
     await safeSet(cacheKey, pem, DEVICE_KEY_TTL);
   }
 

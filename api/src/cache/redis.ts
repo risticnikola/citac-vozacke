@@ -1,5 +1,5 @@
 // api/src/cache/redis.ts
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 
 const FAILURE_THRESHOLD = 5;
 const RESET_MS = 30_000;

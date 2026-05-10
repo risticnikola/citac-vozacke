@@ -1,0 +1,3 @@
+/home/nikola/Desktop/citacVozacke/api/src/plugins/tenant.ts
+/home/nikola/Desktop/citacVozacke/bridge/src/bridge/card-reader.ts
+/home/nikola/Desktop/citacVozacke/bridge/src/bridge/cpp-wrapper.ts

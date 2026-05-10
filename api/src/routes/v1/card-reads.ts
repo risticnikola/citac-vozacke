@@ -1,23 +1,36 @@
 // api/src/routes/v1/card-reads.ts
 import { FastifyPluginAsync } from 'fastify';
-import { Type } from '@sinclair/typebox';
+import { Type, Static } from '@sinclair/typebox';
 import { cardReadService } from '../../services/card-read.service.js';
 import { cardReadLatency, cardReadTotal, failedReadsTotal } from '../../metrics.js';
 
+const CardReadBodySchema = Type.Object({
+  deviceId:   Type.String({ format: 'uuid' }),
+  rawDump:    Type.String({ minLength: 1 }),
+  cardSerial: Type.String({ maxLength: 64 }),
+  cardType:   Type.Union([
+    Type.Literal('vehicle_registration'),
+    Type.Literal('id_card'),
+    Type.Literal('other'),
+  ]),
+});
+type CardReadBody = Static<typeof CardReadBodySchema>;
+
+const CardReadHeadersSchema = Type.Object({ 'idempotency-key': Type.String({ minLength: 32, maxLength: 128 }) });
+type CardReadHeaders = Static<typeof CardReadHeadersSchema>;
+
+const CardReadQuerySchema = Type.Object({
+  cursor:    Type.Optional(Type.String()),
+  limit:     Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+  vehicleId: Type.Optional(Type.String({ format: 'uuid' })),
+});
+type CardReadQuery = Static<typeof CardReadQuerySchema>;
+
 export const cardReadsRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.post('/', {
+  fastify.post<{ Body: CardReadBody; Headers: CardReadHeaders }>('/', {
     schema: {
-      body: Type.Object({
-        deviceId:   Type.String({ format: 'uuid' }),
-        rawDump:    Type.String({ minLength: 1 }),
-        cardSerial: Type.String({ maxLength: 64 }),
-        cardType:   Type.Union([
-          Type.Literal('vehicle_registration'),
-          Type.Literal('id_card'),
-          Type.Literal('other'),
-        ]),
-      }),
-      headers: Type.Object({ 'idempotency-key': Type.String({ minLength: 32, maxLength: 128 }) }),
+      body: CardReadBodySchema,
+      headers: CardReadHeadersSchema,
     },
     preHandler: [fastify.authenticate, fastify.requireTenantContext],
   }, async (req, reply) => {
@@ -40,13 +53,9 @@ export const cardReadsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get('/', {
+  fastify.get<{ Querystring: CardReadQuery }>('/', {
     schema: {
-      querystring: Type.Object({
-        cursor:    Type.Optional(Type.String()),
-        limit:     Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
-        vehicleId: Type.Optional(Type.String({ format: 'uuid' })),
-      }),
+      querystring: CardReadQuerySchema,
     },
     preHandler: [fastify.authenticate, fastify.requireTenantContext],
   }, async (req, reply) => {

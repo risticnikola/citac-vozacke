@@ -53,6 +53,11 @@ ALTER TABLE card_reads
 
 INSERT INTO card_reads SELECT * FROM card_reads_v1;
 
+-- V3 created these on the old unpartitioned table; recreate on the new partitioned one
+DROP INDEX IF EXISTS idx_card_reads_tenant_created;
+DROP INDEX IF EXISTS idx_card_reads_vehicle;
+DROP INDEX IF EXISTS idx_card_reads_device;
+DROP INDEX IF EXISTS idx_card_reads_cursor;
 CREATE INDEX idx_card_reads_tenant_created ON card_reads(tenant_id, created_at DESC);
 CREATE INDEX idx_card_reads_vehicle        ON card_reads(vehicle_id) WHERE vehicle_id IS NOT NULL;
 CREATE INDEX idx_card_reads_device         ON card_reads(device_id);

@@ -4,7 +4,7 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { Resource } from '@opentelemetry/resources';
 import { SEMRESATTRS_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
-import { ParentBasedSampler, TraceIdRatioBased } from '@opentelemetry/sdk-trace-node';
+import { ParentBasedSampler, TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-node';
 
 const sdk = new NodeSDK({
   resource: new Resource({ [SEMRESATTRS_SERVICE_NAME]: 'vehicle-card-api' }),
@@ -13,7 +13,7 @@ const sdk = new NodeSDK({
   }),
   instrumentations: [getNodeAutoInstrumentations()],
   sampler: new ParentBasedSampler({
-    root: new TraceIdRatioBased(process.env.NODE_ENV === 'production' ? 0.1 : 1.0),
+    root: new TraceIdRatioBasedSampler(process.env.NODE_ENV === 'production' ? 0.1 : 1.0),
   }),
 });
 

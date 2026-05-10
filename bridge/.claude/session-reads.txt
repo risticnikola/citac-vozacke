@@ -1,0 +1,8 @@
+/home/nikola/Desktop/citacVozacke/bridge/tests/queue.test.ts
+/home/nikola/Desktop/citacVozacke/bridge/src/bridge/queue.ts
+/home/nikola/Desktop/citacVozacke/bridge/src/types.ts
+/home/nikola/Desktop/citacVozacke/infra/docker-compose.yml
+/home/nikola/Desktop/citacVozacke/api/Dockerfile
+/home/nikola/Desktop/citacVozacke/db/migrations/V4__partition_card_reads.sql
+/home/nikola/Desktop/citacVozacke/db/migrations/V3__indexes.sql
+/home/nikola/Desktop/citacVozacke/bridge/src/main.ts
