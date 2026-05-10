@@ -1,5 +1,5 @@
 // api/tests/helpers.ts
-import { buildApp } from '../../src/app.js';
+import { buildApp } from '../src/app.js';
 import type { FastifyInstance } from 'fastify';
 import { sign } from 'jsonwebtoken';
 import { randomUUID } from 'crypto';

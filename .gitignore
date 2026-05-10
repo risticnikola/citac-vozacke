@@ -3,3 +3,14 @@ build/
 *.user
 .vs/
 node_modules
+Debug/
+Release/
+citacVozacke/Debug/
+citacVozacke/Release/
+*.pdb
+*.ilk
+*.idb
+*.obj
+*.tlog
+*.recipe
+*.log
