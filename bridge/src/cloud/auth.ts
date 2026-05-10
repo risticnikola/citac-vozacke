@@ -17,7 +17,7 @@ export function signDeviceToken(deviceId: string, tenantId: string, privateKeyPe
   const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(JSON.stringify({
     sub: deviceId,
-    tid: tenantId,
+    tenantId,
     iat: now,
     exp,
     jti: randomUUID(),

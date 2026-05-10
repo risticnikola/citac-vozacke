@@ -23,7 +23,7 @@ export async function handleReportGenerate(msg: Message): Promise<void> {
 
   await withTenantContext(pool, tenantId, async (client) => {
     await client.query(
-      `UPDATE reports SET status='generating', updated_at=NOW() WHERE id=$1`,
+      `UPDATE reports SET status='generating', updated_at=NOW() WHERE id=$1`,  // updated_at added by V7 migration
       [reportId],
     );
 
@@ -75,7 +75,7 @@ export async function handleReportGenerate(msg: Message): Promise<void> {
     });
 
     await client.query(
-      `UPDATE reports SET status='ready', s3_key=$2, updated_at=NOW() WHERE id=$1`,
+      `UPDATE reports SET status='ready', pdf_s3_key=$2, updated_at=NOW() WHERE id=$1`,
       [reportId, s3Key],
     );
 

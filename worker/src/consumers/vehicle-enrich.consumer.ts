@@ -50,10 +50,9 @@ export async function handleVehicleEnrich(msg: Message): Promise<void> {
       const anomaly = await detectAnomalies(client, tenantId, read.vehicle_id, cardReadId);
       if (anomaly.severity !== 'none') {
         await client.query(
-          `INSERT INTO audit_log (tenant_id, actor_id, action, resource_type, resource_id, metadata)
-           VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
-          [tenantId, null, 'anomaly.detected', 'card_read', cardReadId,
-           JSON.stringify({ anomalies: anomaly.anomalies, severity: anomaly.severity })],
+          `INSERT INTO audit_log (tenant_id, user_id, device_id, action, resource_type, resource_id)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [tenantId, null, null, 'anomaly.detected', 'card_read', cardReadId],
         );
         log.warn({ anomaly, cardReadId }, 'anomaly detected');
       }

@@ -12,7 +12,7 @@ export async function buildTestApp(): Promise<FastifyInstance> {
 
 export function makeUserToken(tenantId: string, userId?: string): string {
   return sign(
-    { sub: userId ?? randomUUID(), tid: tenantId, role: 'user' },
+    { sub: userId ?? randomUUID(), tenantId, role: 'user' },
     TEST_JWT_SECRET,
     { algorithm: 'HS256', expiresIn: '1h' },
   );

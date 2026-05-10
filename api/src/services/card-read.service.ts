@@ -17,6 +17,7 @@ const IDEM_TTL = 86_400;
 export interface ProcessInput {
   tenantId: string; deviceId: string; rawDump: Buffer;
   cardSerial: string; cardType: string; idempotencyKey: string;
+  parsedData?: Record<string, unknown>;
 }
 
 export const cardReadService = {
@@ -42,7 +43,7 @@ export const cardReadService = {
          VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)
          ON CONFLICT (idempotency_key) DO NOTHING RETURNING *`,
         [input.tenantId, input.deviceId, input.cardSerial, input.cardType,
-         input.idempotencyKey, s3Key, '{}'],
+         input.idempotencyKey, s3Key, JSON.stringify(input.parsedData ?? {})],
       );
       if (rows.length === 0) {
         const { rows: ex } = await client.query<CardRead>(

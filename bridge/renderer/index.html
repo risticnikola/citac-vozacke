@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'">
+  <title>Vehicle Card Bridge</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      gap: 16px;
+    }
+    h1 { font-size: 16px; font-weight: 600; color: #a0aec0; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    #status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #16213e;
+      border-radius: 8px;
+      padding: 12px 16px;
+    }
+    #status-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #e53e3e;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    #status-dot.connected { background: #38a169; }
+    #status-dot.scanning  { background: #d69e2e; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    #status-text { font-size: 14px; color: #a0aec0; }
+
+    .controls { display: flex; gap: 10px; }
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #btn-start { background: #2b6cb0; color: #fff; }
+    #btn-start:hover:not(:disabled) { background: #3182ce; }
+    #btn-stop  { background: #c53030; color: #fff; }
+    #btn-stop:hover:not(:disabled)  { background: #e53e3e; }
+
+    #reader-name-wrap { display: flex; gap: 8px; align-items: center; }
+    #reader-name {
+      background: #16213e;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 13px;
+      padding: 8px 12px;
+      flex: 1;
+    }
+    #reader-name::placeholder { color: #4a5568; }
+
+    #card-panel {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 16px;
+      flex: 1;
+      overflow: auto;
+    }
+    #card-panel h2 { font-size: 13px; color: #4a5568; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    #card-data {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #68d391;
+    }
+    #card-data.empty { color: #4a5568; font-family: inherit; font-size: 14px; }
+
+    #log {
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 12px 16px;
+      height: 100px;
+      overflow-y: auto;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 11px;
+    }
+    .log-entry { margin-bottom: 2px; }
+    .log-entry.error { color: #fc8181; }
+    .log-entry.info  { color: #63b3ed; }
+    .log-entry.ok    { color: #68d391; }
+  </style>
+</head>
+<body>
+  <h1>Vehicle Card Bridge</h1>
+
+  <div id="status-bar">
+    <div id="status-dot"></div>
+    <span id="status-text">Not connected</span>
+  </div>
+
+  <div id="reader-name-wrap">
+    <input id="reader-name" type="text" placeholder="PC/SC reader name (leave blank for auto-detect)" />
+  </div>
+
+  <div class="controls">
+    <button id="btn-start">Start Scanning</button>
+    <button id="btn-stop" disabled>Stop</button>
+  </div>
+
+  <div id="card-panel">
+    <h2>Last Card Read</h2>
+    <div id="card-data" class="empty">No card scanned yet.</div>
+  </div>
+
+  <div id="log"></div>
+
+  <script>
+    const dot     = document.getElementById('status-dot');
+    const statusT = document.getElementById('status-text');
+    const btnStart = document.getElementById('btn-start');
+    const btnStop  = document.getElementById('btn-stop');
+    const cardData = document.getElementById('card-data');
+    const logEl    = document.getElementById('log');
+
+    function appendLog(msg, type = 'info') {
+      const ts = new Date().toLocaleTimeString();
+      const el = document.createElement('div');
+      el.className = `log-entry ${type}`;
+      el.textContent = `[${ts}] ${msg}`;
+      logEl.appendChild(el);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(connected, label, scanning = false) {
+      dot.className = connected ? (scanning ? 'scanning' : 'connected') : '';
+      statusT.textContent = label;
+    }
+
+    btnStart.addEventListener('click', async () => {
+      const name = document.getElementById('reader-name').value.trim() || undefined;
+      btnStart.disabled = true;
+      setStatus(false, 'Connecting…', true);
+      appendLog('Starting reader' + (name ? ': ' + name : ' (auto-detect)'));
+      try {
+        await window.bridge.startReader(name);
+        btnStop.disabled = false;
+        setStatus(true, name ? `Connected: ${name}` : 'Connected', false);
+        appendLog('Reader started — insert card to scan', 'ok');
+      } catch (err) {
+        btnStart.disabled = false;
+        setStatus(false, 'Connection failed');
+        appendLog('Error: ' + (err?.message ?? err), 'error');
+      }
+    });
+
+    btnStop.addEventListener('click', async () => {
+      btnStop.disabled = true;
+      await window.bridge.stopReader().catch(() => {});
+      btnStart.disabled = false;
+      setStatus(false, 'Not connected');
+      appendLog('Reader stopped');
+    });
+
+    window.bridge.onCard((data) => {
+      cardData.className = '';
+      cardData.textContent = JSON.stringify(data, null, 2);
+      appendLog(`Card read — serial: ${data.cardSerial ?? 'unknown'}`, 'ok');
+    });
+
+    window.bridge.onStatus((s) => {
+      if (s.connected) {
+        setStatus(true, s.readerName ? `Connected: ${s.readerName}` : 'Connected');
+      } else {
+        setStatus(false, 'Disconnected');
+        btnStart.disabled = false;
+        btnStop.disabled = true;
+        appendLog('Reader disconnected', 'error');
+      }
+    });
+
+    window.bridge.onError((msg) => {
+      appendLog('Error: ' + msg, 'error');
+      setStatus(false, 'Error');
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+    });
+
+    appendLog('Bridge UI ready', 'info');
+  </script>
+</body>
+</html>
