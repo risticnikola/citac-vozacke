@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
+set(CMAKE_PREFIX_PATH "C:/Qt/5.15.2/mingw81_32")
+set(Qt5_DIR "C:/Qt/5.15.2/mingw81_32/lib/cmake/Qt5")
 
 find_package(Qt5 REQUIRED COMPONENTS Widgets Sql PrintSupport)
 
