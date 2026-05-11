@@ -1,5 +1,5 @@
 {
-  appId: "com.yourcompany.vehiclebridge",
+  appId: "com.citmec.bridge",
   productName: "Vehicle Card Bridge",
   copyright: "Copyright © 2026",
 
@@ -8,28 +8,38 @@
     buildResources: "build",
   },
 
-  files: ["dist/**/*", "renderer/**/*", "package.json"],
+  files: [
+    "dist/**/*",
+    "package.json",
+  ],
+
+  extraResources: [
+    { from: "assets/", to: "assets/", filter: ["*.png"] },
+  ],
 
   win: {
     target: [{ target: "nsis", arch: ["x64"] }],
-    icon: "build/icon.ico",
-    signingHashAlgorithms: ["sha256"],
+    icon: "build/icon.png",
   },
 
   nsis: {
-    oneClick: false,
-    allowToChangeInstallationDirectory: true,
-    installerIcon: "build/icon.ico",
-    uninstallerIcon: "build/icon.ico",
+    oneClick: true,
+    perMachine: false,
+    shortcutName: "Vehicle Card Bridge",
   },
 
-  publish: [
-    {
-      provider: "github",
-      owner: "yourorg",
-      repo: "vehicle-card-bridge",
-    },
-  ],
+  mac: {
+    target: [{ target: "dmg", arch: ["universal"] }],
+    icon: "build/icon.png",
+    category: "public.app-category.utilities",
+  },
 
-  afterSign: "scripts/notarize.js",
+  linux: {
+    target: [{ target: "AppImage", arch: ["x64"] }],
+    icon: "build/icons",
+    category: "Utility",
+  },
+
+  // No publish server yet — distribute installers manually via download link
+  publish: null,
 }
