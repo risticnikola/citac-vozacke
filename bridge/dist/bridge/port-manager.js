@@ -4,6 +4,7 @@ exports.openReader = openReader;
 exports.closeReader = closeReader;
 exports.getActiveReaderName = getActiveReaderName;
 exports.isReaderOpen = isReaderOpen;
+exports.readFromActive = readFromActive;
 // bridge/src/bridge/port-manager.ts
 // Manages the active CardReader session. For USB PC/SC smart card readers the
 // "port" is a PC/SC reader name (e.g. "ACS ACR122U 00") — the C++ binary
@@ -38,5 +39,10 @@ function getActiveReaderName() {
 }
 function isReaderOpen() {
     return activeReader !== null;
+}
+async function readFromActive() {
+    if (!activeReader)
+        throw new Error('No reader open');
+    return activeReader.readCard();
 }
 //# sourceMappingURL=port-manager.js.map

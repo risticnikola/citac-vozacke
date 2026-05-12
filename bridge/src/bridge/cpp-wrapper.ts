@@ -5,7 +5,17 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
 import type { CardData, CardType } from '../types.js';
+
+const DEBUG_LOG = path.join(os.homedir(), 'bridge-debug.log');
+
+function debugLog(obj: unknown): void {
+  try {
+    fs.appendFileSync(DEBUG_LOG, new Date().toISOString() + ' ' + JSON.stringify(obj) + '\n');
+  } catch { /* ignore */ }
+}
 
 interface CppCommand {
   cmd: 'read_card' | 'get_status' | 'shutdown';
@@ -46,7 +56,7 @@ export class CppWrapper extends EventEmitter {
     this.proc.stdout!.setEncoding('utf8');
     this.proc.stdout!.on('data', (chunk: string) => this.onData(chunk));
     this.proc.stderr!.on('data', (d: Buffer) => {
-      console.error({ stderr: d.toString().trim() }, 'cpp binary stderr');
+      debugLog({ event: 'stderr', line: d.toString().trim() });
     });
     this.proc.on('exit', (code) => {
       this.emit('exit', code);
@@ -68,15 +78,18 @@ export class CppWrapper extends EventEmitter {
 
   async readCard(port?: string): Promise<CardData> {
     const resp = await this.send({ cmd: 'read_card', port });
+    debugLog({ event: 'card_response', resp });
+
     if (resp.type === 'error') throw new Error(resp.error ?? 'C++ read_card failed');
-    if (!resp.cardSerial || !resp.cardType || !resp.rawDump) {
-      throw new Error('C++ binary returned incomplete card_data');
+    if (!resp.cardSerial || !resp.cardType) {
+      throw new Error(`C++ binary returned incomplete card_data: ${JSON.stringify(resp)}`);
     }
     return {
       cardType: resp.cardType,
       cardSerial: resp.cardSerial,
-      rawDump: Buffer.from(resp.rawDump, 'hex'),
-      parsedData: resp.parsedData,
+      rawDump: resp.rawDump?.length ? Buffer.from(resp.rawDump, 'hex') : Buffer.alloc(0),
+      // If the binary puts vehicle fields at the top level instead of under `parsedData`, fall back to the full response
+      parsedData: resp.parsedData ?? (resp as unknown as Record<string, unknown>),
     };
   }
 
@@ -115,9 +128,10 @@ export class CppWrapper extends EventEmitter {
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
+      debugLog({ event: 'raw_line', line: trimmed });
       let parsed: CppResponse;
       try { parsed = JSON.parse(trimmed); }
-      catch { console.error({ raw: trimmed }, 'non-JSON from C++ binary'); continue; }
+      catch { debugLog({ event: 'parse_error', raw: trimmed }); continue; }
 
       if (this.pendingResolve) {
         clearTimeout(this.responseTimer!);

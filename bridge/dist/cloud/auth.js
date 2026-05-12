@@ -13,7 +13,7 @@ function signDeviceToken(deviceId, tenantId, privateKeyPem) {
     const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
     const payload = Buffer.from(JSON.stringify({
         sub: deviceId,
-        tid: tenantId,
+        tenantId,
         iat: now,
         exp,
         jti: (0, crypto_2.randomUUID)(),

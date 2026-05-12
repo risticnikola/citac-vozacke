@@ -14,12 +14,6 @@ export class CardReader extends EventEmitter {
     this.wrapper = new CppWrapper();
     await this.wrapper.start(readerName);
 
-    this.wrapper.on('unsolicited', (msg) => {
-      if (msg.type === 'card_inserted') {
-        this.readCard().catch((err) => this.emit('error', err));
-      }
-    });
-
     this.wrapper.on('exit', (code) => this.emit('disconnect', code));
     this.wrapper.on('error', (err) => this.emit('error', err));
   }
@@ -34,7 +28,7 @@ export class CardReader extends EventEmitter {
       cardType,
       cardSerial: raw.cardSerial,
       rawDump: raw.rawDump,
-      parsedData: parseCardOutput(raw as any),
+      parsedData: parseCardOutput(raw.parsedData as any),
     };
 
     this.emit('card', cardData);

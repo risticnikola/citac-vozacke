@@ -11,8 +11,18 @@ exports.CppWrapper = void 0;
 const child_process_1 = require("child_process");
 const events_1 = require("events");
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
+const os_1 = __importDefault(require("os"));
+const DEBUG_LOG = path_1.default.join(os_1.default.homedir(), 'bridge-debug.log');
+function debugLog(obj) {
+    try {
+        fs_1.default.appendFileSync(DEBUG_LOG, new Date().toISOString() + ' ' + JSON.stringify(obj) + '\n');
+    }
+    catch { /* ignore */ }
+}
+const BINARY_NAME = 'citacVozacke' + (process.platform === 'win32' ? '.exe' : '');
 const BINARY_PATH = process.env.CPP_BINARY_PATH
-    ?? path_1.default.join(process.resourcesPath ?? '.', 'native', 'citacVozacke');
+    ?? path_1.default.join(process.resourcesPath ?? '.', 'native', BINARY_NAME);
 const STARTUP_TIMEOUT_MS = 5_000;
 const RESPONSE_TIMEOUT_MS = 20_000;
 class CppWrapper extends events_1.EventEmitter {
@@ -30,7 +40,7 @@ class CppWrapper extends events_1.EventEmitter {
         this.proc.stdout.setEncoding('utf8');
         this.proc.stdout.on('data', (chunk) => this.onData(chunk));
         this.proc.stderr.on('data', (d) => {
-            console.error({ stderr: d.toString().trim() }, 'cpp binary stderr');
+            debugLog({ event: 'stderr', line: d.toString().trim() });
         });
         this.proc.on('exit', (code) => {
             this.emit('exit', code);
@@ -48,16 +58,18 @@ class CppWrapper extends events_1.EventEmitter {
     }
     async readCard(port) {
         const resp = await this.send({ cmd: 'read_card', port });
+        debugLog({ event: 'card_response', resp });
         if (resp.type === 'error')
             throw new Error(resp.error ?? 'C++ read_card failed');
-        if (!resp.cardSerial || !resp.cardType || !resp.rawDump) {
-            throw new Error('C++ binary returned incomplete card_data');
+        if (!resp.cardSerial || !resp.cardType) {
+            throw new Error(`C++ binary returned incomplete card_data: ${JSON.stringify(resp)}`);
         }
         return {
             cardType: resp.cardType,
             cardSerial: resp.cardSerial,
-            rawDump: Buffer.from(resp.rawDump, 'hex'),
-            parsedData: resp.parsedData,
+            rawDump: resp.rawDump?.length ? Buffer.from(resp.rawDump, 'hex') : Buffer.alloc(0),
+            // If the binary puts vehicle fields at the top level instead of under `parsedData`, fall back to the full response
+            parsedData: resp.parsedData ?? resp,
         };
     }
     async shutdown() {
@@ -96,12 +108,13 @@ class CppWrapper extends events_1.EventEmitter {
             const trimmed = line.trim();
             if (!trimmed)
                 continue;
+            debugLog({ event: 'raw_line', line: trimmed });
             let parsed;
             try {
                 parsed = JSON.parse(trimmed);
             }
             catch {
-                console.error({ raw: trimmed }, 'non-JSON from C++ binary');
+                debugLog({ event: 'parse_error', raw: trimmed });
                 continue;
             }
             if (this.pendingResolve) {

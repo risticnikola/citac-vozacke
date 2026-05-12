@@ -33,7 +33,7 @@ export class CloudClient {
           },
           body: JSON.stringify({
             deviceId: item.deviceId,
-            rawDump: item.rawDump.toString('base64'),
+            ...(item.rawDump.length > 0 ? { rawDump: item.rawDump.toString('base64') } : {}),
             cardSerial: item.cardSerial,
             cardType: item.cardType,
             parsedData: (item as any).parsedData,
@@ -74,6 +74,15 @@ export class CloudClient {
       }
     }
     return { uploaded, failed };
+  }
+
+  async heartbeat(): Promise<void> {
+    const token = getToken(this.deviceId, this.tenantId, this.privateKeyPem);
+    await fetch(`${this.apiUrl}/v1/devices/heartbeat`, {
+      method:  'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal:  AbortSignal.timeout(10_000),
+    });
   }
 
   getQueueDepth(): number {

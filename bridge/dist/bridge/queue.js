@@ -27,6 +27,7 @@ function initQueue(dbPath) {
       card_serial     TEXT NOT NULL,
       card_type       TEXT NOT NULL,
       raw_dump        BLOB NOT NULL,
+      parsed_data     TEXT NOT NULL DEFAULT '{}',
       idempotency_key TEXT NOT NULL UNIQUE,
       retry_count     INTEGER NOT NULL DEFAULT 0,
       next_retry_at   INTEGER NOT NULL DEFAULT 0,
@@ -36,17 +37,19 @@ function initQueue(dbPath) {
 }
 function enqueue(item) {
     const idempotencyKey = item.idempotencyKey || (0, crypto_1.randomUUID)();
+    const parsedDataJson = JSON.stringify(item.parsedData ?? {});
     db.prepare(`INSERT OR IGNORE INTO offline_queue
-       (device_id, card_serial, card_type, raw_dump, idempotency_key, next_retry_at, created_at)
-     VALUES (?, ?, ?, ?, ?, 0, ?)`).run(item.deviceId, item.cardSerial, item.cardType, item.rawDump, idempotencyKey, Date.now());
+       (device_id, card_serial, card_type, raw_dump, parsed_data, idempotency_key, next_retry_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?)`).run(item.deviceId, item.cardSerial, item.cardType, item.rawDump, parsedDataJson, idempotencyKey, Date.now());
 }
 function dequeueReady(limit = 10) {
     const now = Date.now();
-    return db.prepare(`SELECT id,
+    const rows = db.prepare(`SELECT id,
             device_id       AS deviceId,
             card_serial     AS cardSerial,
             card_type       AS cardType,
             raw_dump        AS rawDump,
+            parsed_data     AS parsedDataJson,
             idempotency_key AS idempotencyKey,
             retry_count     AS retryCount,
             created_at      AS createdAt
@@ -54,6 +57,15 @@ function dequeueReady(limit = 10) {
      WHERE next_retry_at <= ? AND retry_count < ?
      ORDER BY created_at ASC
      LIMIT ?`).all(now, MAX_RETRY, limit);
+    return rows.map((r) => ({
+        ...r,
+        parsedData: (() => { try {
+            return JSON.parse(r.parsedDataJson);
+        }
+        catch {
+            return {};
+        } })(),
+    }));
 }
 function markSuccess(id) {
     db.prepare('DELETE FROM offline_queue WHERE id=?').run(id);

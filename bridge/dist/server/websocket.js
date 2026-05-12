@@ -9,7 +9,8 @@ function createWsServer(port, allowedOrigins) {
     const wss = new ws_1.WebSocketServer({ host: '127.0.0.1', port });
     wss.on('connection', (ws, req) => {
         const origin = req.headers['origin'] ?? '';
-        if (!allowedOrigins.includes(origin) && origin !== '') {
+        const allow = allowedOrigins.includes('*') || allowedOrigins.includes(origin) || origin === '';
+        if (!allow) {
             ws.close(4003, 'Origin not allowed');
             return;
         }

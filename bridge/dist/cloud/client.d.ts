@@ -13,6 +13,7 @@ export declare class CloudClient {
         uploaded: number;
         failed: number;
     }>;
+    heartbeat(): Promise<void>;
     getQueueDepth(): number;
 }
 export {};

@@ -35,6 +35,7 @@ export interface QueuedRead {
     cardSerial: string;
     cardType: CardType;
     rawDump: Buffer;
+    parsedData?: VehicleRegistrationData;
     idempotencyKey: string;
     retryCount: number;
     createdAt: number;

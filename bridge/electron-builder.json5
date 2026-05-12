@@ -10,6 +10,7 @@
 
   files: [
     "dist/**/*",
+    "wizard/**/*",
     "package.json",
   ],
 
@@ -20,12 +21,17 @@
   win: {
     target: [{ target: "nsis", arch: ["x64"] }],
     icon: "build/icon.png",
+    extraResources: [
+      { from: "native/citacVozacke.exe",         to: "native/citacVozacke.exe" },
+      { from: "native/eVehicleRegistrationAPI.dll", to: "native/eVehicleRegistrationAPI.dll" },
+    ],
   },
 
   nsis: {
     oneClick: true,
     perMachine: false,
     shortcutName: "Vehicle Card Bridge",
+    include: "build/installer.nsh",
   },
 
   mac: {

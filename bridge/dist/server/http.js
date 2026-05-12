@@ -5,13 +5,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createHttpServer = createHttpServer;
 // bridge/src/server/http.ts
-// Local HTTP server — bound to 127.0.0.1 only; used by the browser extension
 const http_1 = __importDefault(require("http"));
 const port_manager_js_1 = require("../bridge/port-manager.js");
+const WEB_ORIGIN = process.env.WEB_ORIGIN ?? '*';
+function setCors(res, req) {
+    const origin = req.headers['origin'] ?? '';
+    res.setHeader('Access-Control-Allow-Origin', WEB_ORIGIN === '*' ? (origin || '*') : WEB_ORIGIN);
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
 function createHttpServer(client, port) {
     const server = http_1.default.createServer(async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Access-Control-Allow-Origin', 'null'); // Electron renderer only
+        setCors(res, req);
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204).end();
+            return;
+        }
         const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
         try {
             if (req.method === 'GET' && url.pathname === '/health') {
@@ -33,6 +43,22 @@ function createHttpServer(client, port) {
             if (req.method === 'POST' && url.pathname === '/reader/close') {
                 await (0, port_manager_js_1.closeReader)();
                 res.writeHead(200).end(JSON.stringify({ ok: true }));
+                return;
+            }
+            if (req.method === 'POST' && url.pathname === '/reader/scan') {
+                if (!(0, port_manager_js_1.isReaderOpen)()) {
+                    res.writeHead(503).end(JSON.stringify({ error: 'Reader not open' }));
+                    return;
+                }
+                // readFromActive() → activeReader.readCard() → emits 'card' event →
+                // the listener in main.ts handles WebSocket broadcast and queue.
+                const cardData = await (0, port_manager_js_1.readFromActive)();
+                res.writeHead(200).end(JSON.stringify({
+                    ok: true,
+                    cardType: cardData.cardType,
+                    cardSerial: cardData.cardSerial,
+                    parsedData: cardData.parsedData ?? null,
+                }));
                 return;
             }
             if (req.method === 'POST' && url.pathname === '/queue/drain') {

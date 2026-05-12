@@ -5,13 +5,11 @@ import {
   openReader, closeReader, getActiveReaderName, isReaderOpen, readFromActive,
 } from '../bridge/port-manager.js';
 
-const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3002';
+const WEB_ORIGIN = process.env.WEB_ORIGIN ?? '*';
 
 function setCors(res: http.ServerResponse, req: http.IncomingMessage): void {
   const origin = req.headers['origin'] ?? '';
-  if (origin === WEB_ORIGIN || origin === 'null' || origin === '') {
-    res.setHeader('Access-Control-Allow-Origin', origin || WEB_ORIGIN);
-  }
+  res.setHeader('Access-Control-Allow-Origin', WEB_ORIGIN === '*' ? (origin || '*') : WEB_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }

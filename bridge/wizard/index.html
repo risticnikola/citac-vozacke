@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
+  <title>Vehicle Card Bridge — Setup</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0a;
+      color: #e5e5e5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .card {
+      background: #141414;
+      border: 1px solid #262626;
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      background: #f97316;
+      border-radius: 10px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #fafafa;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: #737373;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #a3a3a3;
+      margin-bottom: 6px;
+    }
+
+    input {
+      display: block;
+      width: 100%;
+      background: #1f1f1f;
+      border: 1px solid #303030;
+      border-radius: 8px;
+      color: #fafafa;
+      font-size: 15px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 16px;
+    }
+
+    input:focus { border-color: #f97316; }
+    input::placeholder { color: #525252; }
+
+    #token {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 18px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    details {
+      margin-bottom: 20px;
+    }
+
+    summary {
+      font-size: 12px;
+      color: #525252;
+      cursor: pointer;
+      user-select: none;
+      margin-bottom: 8px;
+    }
+
+    summary:hover { color: #737373; }
+
+    button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      background: #f97316;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    button:hover:not(:disabled) { background: #ea6c0a; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .error {
+      background: #2a1010;
+      border: 1px solid #7f1d1d;
+      border-radius: 8px;
+      color: #fca5a5;
+      font-size: 13px;
+      padding: 12px 14px;
+      margin-top: 16px;
+      display: none;
+    }
+
+    .success {
+      background: #0d2a0d;
+      border: 1px solid #14532d;
+      border-radius: 8px;
+      color: #86efac;
+      font-size: 13px;
+      padding: 12px 14px;
+      margin-top: 16px;
+      display: none;
+      line-height: 1.5;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">🔌</div>
+    <h1>Connect this device</h1>
+    <p class="subtitle">
+      Enter the activation code shown in your Vehicle Card dashboard
+      under <strong>Settings → Devices → Add device</strong>.
+    </p>
+
+    <label for="token">Activation code</label>
+    <input id="token" type="text" placeholder="XXXX-XXXX-XXXX-XXXX"
+           maxlength="19" autocomplete="off" spellcheck="false" />
+
+    <label for="label">Device name <span style="color:#525252">(optional)</span></label>
+    <input id="label" type="text" placeholder="e.g. Front desk" maxlength="128" />
+
+    <details>
+      <summary>Advanced</summary>
+      <label for="apiUrl" style="margin-top:8px">Server URL</label>
+      <input id="apiUrl" type="text" placeholder="https://api.yourdomain.com" />
+    </details>
+
+    <button id="btn" onclick="activate()">
+      <span class="spinner" id="spinner"></span>
+      <span id="btnText">Activate</span>
+    </button>
+
+    <div class="error" id="error"></div>
+    <div class="success" id="success"></div>
+  </div>
+
+  <script>
+    // Auto-format token input as XXXX-XXXX-XXXX-XXXX
+    document.getElementById('token').addEventListener('input', (e) => {
+      let v = e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 16);
+      const groups = [];
+      for (let i = 0; i < v.length; i += 4) groups.push(v.slice(i, i + 4));
+      e.target.value = groups.join('-');
+    });
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      const defaultUrl = await window.wizard.getDefaultApiUrl();
+      document.getElementById('apiUrl').value = defaultUrl;
+    });
+
+    async function activate() {
+      const token  = document.getElementById('token').value.trim();
+      const label  = document.getElementById('label').value.trim() || null;
+      const apiUrl = document.getElementById('apiUrl').value.trim();
+
+      if (!token) return showError('Please enter an activation code.');
+      if (token.replace(/-/g, '').length !== 16) return showError('Code must be 16 characters (XXXX-XXXX-XXXX-XXXX).');
+
+      setLoading(true);
+      hideMessages();
+
+      const result = await window.wizard.activate({ token, label, apiUrl });
+
+      setLoading(false);
+      if (result.ok) {
+        document.getElementById('success').style.display = 'block';
+        document.getElementById('success').textContent =
+          'Device activated! The bridge is starting…';
+        document.getElementById('btn').disabled = true;
+      } else {
+        showError(result.error ?? 'Activation failed. Check your code and try again.');
+      }
+    }
+
+    function setLoading(on) {
+      document.getElementById('btn').disabled = on;
+      document.getElementById('spinner').style.display = on ? 'block' : 'none';
+      document.getElementById('btnText').textContent = on ? 'Activating…' : 'Activate';
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function hideMessages() {
+      document.getElementById('error').style.display = 'none';
+      document.getElementById('success').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

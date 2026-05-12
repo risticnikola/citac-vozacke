@@ -1,7 +1,8 @@
 // bridge/src/main.ts
-import { app, Tray, Menu, nativeImage } from 'electron';
+import { app, Tray, Menu, nativeImage, BrowserWindow, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
+import fs from 'fs';
 import { initQueue, enqueue } from './bridge/queue.js';
 import { CloudClient } from './cloud/client.js';
 import { createHttpServer } from './server/http.js';
@@ -10,17 +11,41 @@ import { openReader, closeReader, isReaderOpen } from './bridge/port-manager.js'
 import type { BridgeConfig } from './types.js';
 import type { WebSocketServer } from 'ws';
 
-const CONFIG: BridgeConfig = {
-  cloudApiUrl:    process.env.CLOUD_API_URL      ?? 'http://localhost:3000',
-  deviceId:       process.env.DEVICE_ID!,
-  privateKeyPem:  process.env.DEVICE_PRIVATE_KEY!,
-  httpPort:       parseInt(process.env.BRIDGE_HTTP_PORT ?? '4000', 10),
-  wsPort:         parseInt(process.env.BRIDGE_WS_PORT   ?? '4001', 10),
-  allowedOrigins: (process.env.ALLOWED_ORIGINS   ?? 'null').split(','),
-};
-
+const DEFAULT_API_URL = process.env.DEFAULT_API_URL ?? 'http://localhost:3050';
 const DB_PATH = path.join(app.getPath('userData'), 'offline-queue.db');
+const CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
 
+interface DeviceConfig {
+  deviceId:          string;
+  devicePrivateKey:  string;
+  tenantId:          string;
+  cloudApiUrl?:      string;
+  bridgeHttpPort?:   number;
+  bridgeWsPort?:     number;
+  allowedOrigins?:   string[];
+}
+
+function loadDeviceConfig(): DeviceConfig | null {
+  const candidates = [
+    CONFIG_PATH,
+    path.join(process.resourcesPath ?? '.', 'config.json'),
+    path.join(__dirname, '..', 'config.json'),
+  ];
+  for (const candidate of candidates) {
+    try {
+      const raw = fs.readFileSync(candidate, 'utf8');
+      const cfg = JSON.parse(raw) as Partial<DeviceConfig>;
+      if (cfg.deviceId && cfg.devicePrivateKey && cfg.tenantId) return cfg as DeviceConfig;
+    } catch { /* try next */ }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Tray helpers
+// ---------------------------------------------------------------------------
+
+let CONFIG!: BridgeConfig;
 let tray: Tray | null = null;
 
 function getIconPath(active: boolean): string {
@@ -44,27 +69,17 @@ function buildMenu(
     {
       label: 'Close reader',
       enabled: readerOpen,
-      click: async () => {
-        await closeReader();
-        updateTray(false, cloudClient, wss);
-      },
+      click: async () => { await closeReader(); updateTray(false, cloudClient, wss); },
     },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
 }
 
-function updateTray(
-  readerOpen: boolean,
-  cloudClient: CloudClient,
-  wss: WebSocketServer,
-): void {
+function updateTray(readerOpen: boolean, cloudClient: CloudClient, wss: WebSocketServer): void {
   if (!tray) return;
-  try {
-    tray.setImage(getIconPath(readerOpen));
-  } catch {
-    tray.setImage(nativeImage.createEmpty());
-  }
+  try { tray.setImage(getIconPath(readerOpen)); }
+  catch { tray.setImage(nativeImage.createEmpty()); }
   tray.setToolTip(`Vehicle Card Bridge — reader ${readerOpen ? 'open' : 'closed'}`);
   tray.setContextMenu(buildMenu(readerOpen, cloudClient, wss));
 }
@@ -72,7 +87,6 @@ function updateTray(
 async function tryOpenReader(cloudClient: CloudClient, wss: WebSocketServer): Promise<void> {
   try {
     const reader = await openReader();
-
     reader.on('card', async (cardData) => {
       enqueue({
         deviceId:       CONFIG.deviceId,
@@ -84,90 +98,160 @@ async function tryOpenReader(cloudClient: CloudClient, wss: WebSocketServer): Pr
       });
       broadcast(wss, {
         type: 'card.read',
-        payload: {
-          cardType:   cardData.cardType,
-          cardSerial: cardData.cardSerial,
-          parsedData: cardData.parsedData,
-        },
+        payload: { cardType: cardData.cardType, cardSerial: cardData.cardSerial, parsedData: cardData.parsedData },
       });
       cloudClient.drainQueue().catch(console.error);
     });
-
     reader.on('disconnect', () => updateTray(false, cloudClient, wss));
-
     updateTray(true, cloudClient, wss);
   } catch (err: any) {
     console.error({ err }, 'Failed to open card reader');
   }
 }
 
-app.whenReady().then(async () => {
-  const missing = (['DEVICE_ID', 'DEVICE_PRIVATE_KEY', 'TENANT_ID'] as const)
-    .filter((k) => !process.env[k]);
-  if (missing.length) {
-    const { dialog } = await import('electron');
-    dialog.showErrorBox(
-      'Configuration Error',
-      `Missing required environment variables:\n${missing.join('\n')}\n\nConfigure them and restart.`,
-    );
-    app.quit();
-    return;
-  }
+// ---------------------------------------------------------------------------
+// Bridge startup (called after config is confirmed present)
+// ---------------------------------------------------------------------------
+
+async function startBridge(deviceCfg: DeviceConfig): Promise<void> {
+  CONFIG = {
+    cloudApiUrl:    deviceCfg.cloudApiUrl ?? DEFAULT_API_URL,
+    deviceId:       deviceCfg.deviceId,
+    privateKeyPem:  deviceCfg.devicePrivateKey,
+    httpPort:       deviceCfg.bridgeHttpPort  ?? parseInt(process.env.BRIDGE_HTTP_PORT ?? '4000', 10),
+    wsPort:         deviceCfg.bridgeWsPort    ?? parseInt(process.env.BRIDGE_WS_PORT   ?? '4001', 10),
+    allowedOrigins: deviceCfg.allowedOrigins  ?? (process.env.ALLOWED_ORIGINS ?? '*').split(','),
+  };
 
   app.setLoginItemSettings({ openAtLogin: true });
 
-  // Linux auto-start via .desktop file (setLoginItemSettings is a no-op on Linux)
   if (process.platform === 'linux' && app.isPackaged) {
     const { homedir } = await import('os');
     const autostartDir = path.join(homedir(), '.config', 'autostart');
-    const desktopFile  = path.join(autostartDir, 'vehicle-card-bridge.desktop');
     const desktop = [
-      '[Desktop Entry]',
-      'Type=Application',
-      'Name=Vehicle Card Bridge',
-      `Exec=${process.execPath}`,
-      'Hidden=false',
-      'NoDisplay=false',
+      '[Desktop Entry]', 'Type=Application', 'Name=Vehicle Card Bridge',
+      `Exec=${process.execPath}`, 'Hidden=false', 'NoDisplay=false',
       'X-GNOME-Autostart-enabled=true',
     ].join('\n');
     try {
       const { mkdir, writeFile } = await import('fs/promises');
       await mkdir(autostartDir, { recursive: true });
-      await writeFile(desktopFile, desktop, { encoding: 'utf8' });
-    } catch (err) {
-      console.error({ err }, 'Failed to write Linux autostart entry');
-    }
+      await writeFile(path.join(autostartDir, 'vehicle-card-bridge.desktop'), desktop, { encoding: 'utf8' });
+    } catch (err) { console.error({ err }, 'Failed to write Linux autostart entry'); }
   }
 
   initQueue(DB_PATH);
 
   const cloudClient = new CloudClient(
-    CONFIG.cloudApiUrl, CONFIG.deviceId, process.env.TENANT_ID ?? '', CONFIG.privateKeyPem,
+    CONFIG.cloudApiUrl, CONFIG.deviceId, deviceCfg.tenantId, CONFIG.privateKeyPem,
   );
 
   const wss = createWsServer(CONFIG.wsPort, CONFIG.allowedOrigins);
   createHttpServer(cloudClient, CONFIG.httpPort);
 
   setInterval(() => cloudClient.drainQueue().catch(console.error), 30_000);
+  cloudClient.heartbeat().catch(console.error);
+  setInterval(() => cloudClient.heartbeat().catch(console.error), 5 * 60_000);
   autoUpdater.checkForUpdatesAndNotify().catch(console.error);
-  setInterval(
-    () => autoUpdater.checkForUpdatesAndNotify().catch(console.error),
-    4 * 60 * 60 * 1000,
-  );
+  setInterval(() => autoUpdater.checkForUpdatesAndNotify().catch(console.error), 4 * 60 * 60 * 1000);
 
-  // Create system tray
   let initialIcon: string | Electron.NativeImage;
-  try {
-    initialIcon = getIconPath(false);
-  } catch {
-    initialIcon = nativeImage.createEmpty();
-  }
+  try { initialIcon = getIconPath(false); }
+  catch { initialIcon = nativeImage.createEmpty(); }
   tray = new Tray(initialIcon as any);
   updateTray(false, cloudClient, wss);
 
-  // Keep the app alive even with no windows
   app.on('window-all-closed', () => { /* stay alive in tray */ });
 
-  // Auto-open reader on startup
   await tryOpenReader(cloudClient, wss);
+}
+
+// ---------------------------------------------------------------------------
+// Setup wizard (shown when no config.json exists)
+// ---------------------------------------------------------------------------
+
+function showWizard(): void {
+  const win = new BrowserWindow({
+    width:           480,
+    height:          600,
+    resizable:       false,
+    center:          true,
+    title:           'Vehicle Card Bridge — Setup',
+    backgroundColor: '#0a0a0a',
+    webPreferences: {
+      preload:          path.join(__dirname, 'wizard', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration:  false,
+    },
+  });
+
+  const htmlPath = app.isPackaged
+    ? path.join(app.getAppPath(), 'wizard', 'index.html')
+    : path.join(__dirname, '..', 'wizard', 'index.html');
+  win.loadFile(htmlPath);
+  win.setMenuBarVisibility(false);
+
+  ipcMain.handle('wizard:get-default-api-url', () => DEFAULT_API_URL);
+
+  ipcMain.handle('wizard:activate', async (_event, args: {
+    token: string;
+    label: string | null;
+    apiUrl: string;
+  }) => {
+    try {
+      const res = await fetch(`${args.apiUrl}/v1/devices/activate`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          token:    args.token,
+          label:    args.label,
+          platform: process.platform === 'win32' ? 'windows'
+                  : process.platform === 'darwin' ? 'macos'
+                  : 'linux',
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        return { ok: false, error: body.error ?? `Server returned ${res.status}` };
+      }
+
+      const data = await res.json() as { deviceId: string; devicePrivateKey: string; tenantId: string };
+
+      const config: DeviceConfig = {
+        deviceId:        data.deviceId,
+        devicePrivateKey: data.devicePrivateKey,
+        tenantId:        data.tenantId,
+        cloudApiUrl:     args.apiUrl,
+      };
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+
+      // Start bridge then close wizard
+      win.close();
+      await startBridge(config);
+
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err.message ?? 'Network error — check the server URL.' };
+    }
+  });
+
+  // If the user closes the wizard without activating, quit
+  win.on('closed', () => {
+    if (!loadDeviceConfig()) app.quit();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+app.whenReady().then(async () => {
+  const deviceCfg = loadDeviceConfig();
+  if (!deviceCfg) {
+    showWizard();
+    return;
+  }
+  await startBridge(deviceCfg);
 });
