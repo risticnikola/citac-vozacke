@@ -70,6 +70,9 @@ export interface ServiceReminder {
   completed_by_email: string | null;
   notes: string | null;
   is_overdue: boolean;
+  km_remaining: number | null;
+  days_remaining: number | null;
+  urgency: 'overdue' | 'due_soon' | 'ok';
   plate: string | null;
   vin: string | null;
   make: string | null;
