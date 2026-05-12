@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Car, AlertTriangle, Clock, BellDot, ChevronRight } from 'lucide-react';
 import { remindersApi } from '@/lib/api/reminders';
-import { vehiclesApi } from '@/lib/api/vehicles';
 import { Spinner } from '@/components/ui/Spinner';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/cn';
@@ -69,14 +68,9 @@ export default function DashboardPage() {
     queryFn: () => remindersApi.list({ status: 'open', dueBefore: addDays(7), limit: 5 }),
   });
 
-  const { data: vehiclesData, isLoading: l3 } = useQuery({
-    queryKey: ['vehicles', {}],
-    queryFn: () => vehiclesApi.list({ limit: 1 }),
-  });
-
   const overdue = overdueData?.items ?? [];
   const soon    = soonData?.items ?? [];
-  const isLoading = l1 || l2 || l3;
+  const isLoading = l1 || l2;
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
