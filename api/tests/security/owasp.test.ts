@@ -1,17 +1,45 @@
 // api/tests/security/owasp.test.ts
 // OWASP Top 10 stubs — run against a live stack in integration; unit-level checks here
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { Pool } from 'pg';
 import { buildTestApp, makeUserToken, TENANT_A } from '../helpers.js';
 import type { FastifyInstance } from 'fastify';
 
 let app: FastifyInstance;
+let dbPool: Pool;
 
-beforeAll(async () => { app = await buildTestApp(); await app.ready(); });
-afterAll(async () => { await app.close(); });
+beforeAll(async () => {
+  app = await buildTestApp();
+  await app.ready();
+  dbPool = new Pool({ connectionString: process.env.DATABASE_URL });
+  await dbPool.query(
+    `INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+    [TENANT_A, 'OWASP Test Tenant A', `owasp-tenant-a-${TENANT_A.slice(0, 8)}`],
+  );
+});
+
+afterAll(async () => {
+  await dbPool.query(`DELETE FROM vehicles WHERE tenant_id = $1`, [TENANT_A]);
+  await dbPool.query(`DELETE FROM tenants WHERE id = $1`, [TENANT_A]);
+  await dbPool.end();
+  await app.close();
+});
 
 describe('A01 Broken Access Control', () => {
   it('unauthenticated POST /v1/card-reads is rejected', async () => {
-    const resp = await app.inject({ method: 'POST', url: '/v1/card-reads', body: '{}' });
+    const resp = await app.inject({
+      method: 'POST',
+      url: '/v1/card-reads',
+      headers: {
+        'Content-Type': 'application/json',
+        'idempotency-key': 'a'.repeat(32),
+      },
+      body: JSON.stringify({
+        deviceId: '00000000-0000-0000-0000-000000000001',
+        cardSerial: 'TEST-SERIAL',
+        cardType: 'vehicle_registration',
+      }),
+    });
     expect(resp.statusCode).toBe(401);
   });
 });

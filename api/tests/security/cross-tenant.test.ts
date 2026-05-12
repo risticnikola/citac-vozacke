@@ -39,7 +39,7 @@ describe('Cross-tenant isolation', () => {
       headers: { Authorization: `Bearer ${tokenA}` },
     });
     // Must be 404, not 403 (which would confirm existence) or 200 (which leaks data)
-    expect(resp.statusCode).toBeOneOf([404, 401]);
+    expect([404, 401]).toContain(resp.statusCode);
   });
 
   it('PATCH on non-existent cross-tenant ID returns 404 not 403', async () => {
@@ -53,7 +53,7 @@ describe('Cross-tenant isolation', () => {
       },
       body: JSON.stringify({ plate: 'INJECTED' }),
     });
-    expect(resp.statusCode).toBeOneOf([404, 401]);
+    expect([404, 401]).toContain(resp.statusCode);
   });
 
   it('tenant B token cannot list tenant A card reads', async () => {
