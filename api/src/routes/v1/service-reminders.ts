@@ -15,6 +15,8 @@ const ReminderBody = Type.Object({
   dueDate:        Type.Optional(Type.String({ format: 'date' })),
   dueMileageKm:   Type.Optional(Type.Integer({ minimum: 1 })),
   notes:          Type.Optional(Type.String()),
+  intervalKm:     Type.Optional(Type.Integer({ minimum: 1 })),
+  intervalDays:   Type.Optional(Type.Integer({ minimum: 1 })),
 });
 type ReminderBodyType = Static<typeof ReminderBody>;
 
@@ -24,6 +26,7 @@ const ReminderPatchBody = Type.Object({
   dueMileageKm:   Type.Optional(Type.Integer({ minimum: 1 })),
   notes:          Type.Optional(Type.String()),
   completed:      Type.Optional(Type.Boolean()),
+  skipRenewal:    Type.Optional(Type.Boolean()),
 });
 type ReminderPatchBodyType = Static<typeof ReminderPatchBody>;
 
@@ -149,7 +152,7 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { body: ReminderBody },
     preHandler: [fastify.authenticate, fastify.requireTenantContext],
   }, async (req, reply) => {
-    const { vehicleId, serviceType, dueDate, dueMileageKm, notes } = req.body;
+    const { vehicleId, serviceType, dueDate, dueMileageKm, notes, intervalKm, intervalDays } = req.body;
     if (!dueDate && !dueMileageKm)
       return reply.code(400).send({ error: 'At least one of dueDate or dueMileageKm is required' });
 
@@ -161,9 +164,10 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
 
       const { rows } = await c.query(
         `INSERT INTO service_reminders
-           (tenant_id, vehicle_id, service_type, due_date, due_mileage_km, notes)
-         VALUES ($1,$2,$3,$4::date,$5,$6) RETURNING *`,
-        [req.tenantId, vehicleId, serviceType, dueDate ?? null, dueMileageKm ?? null, notes ?? null],
+           (tenant_id, vehicle_id, service_type, due_date, due_mileage_km, notes, interval_km, interval_days)
+         VALUES ($1,$2,$3,$4::date,$5,$6,$7,$8) RETURNING *`,
+        [req.tenantId, vehicleId, serviceType, dueDate ?? null, dueMileageKm ?? null,
+         notes ?? null, intervalKm ?? null, intervalDays ?? null],
       );
       return rows;
     });
@@ -175,7 +179,7 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: [fastify.authenticate, fastify.requireTenantContext],
   }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const { serviceType, dueDate, dueMileageKm, notes, completed } = req.body;
+    const { serviceType, dueDate, dueMileageKm, notes, completed, skipRenewal } = req.body;
     const completedBy = completed ? req.jwtPayload.sub : null;
 
     const rows = await withTenantContext(pool, req.tenantId, async (c) => {
@@ -200,6 +204,38 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
         [id, serviceType ?? null, dueDate ?? null, dueMileageKm ?? null,
          notes ?? null, completed ?? null, completedBy],
       );
+
+      // Auto-renewal: fires only when marking complete and not explicitly skipped
+      if (rows.length && completed === true && !skipRenewal) {
+        const r = rows[0];
+        if (r.interval_km != null || r.interval_days != null) {
+          const { rows: vRows } = await c.query(
+            `SELECT current_mileage_km FROM vehicles WHERE id=$1`, [r.vehicle_id],
+          );
+          const currentMileage: number | null = vRows[0]?.current_mileage_km ?? null;
+          const nextMileage =
+            r.interval_km != null && currentMileage != null
+              ? currentMileage + r.interval_km
+              : null;
+
+          if (nextMileage != null || r.interval_days != null) {
+            await c.query(
+              `INSERT INTO service_reminders
+                 (tenant_id, vehicle_id, service_type, due_date, due_mileage_km, notes, interval_km, interval_days)
+               VALUES ($1,$2,$3,
+                 CASE WHEN $4::int IS NOT NULL THEN CURRENT_DATE + ($4::int || ' days')::INTERVAL ELSE NULL END,
+                 $5,$6,$7,$8)`,
+              [req.tenantId, r.vehicle_id, r.service_type,
+               r.interval_days ?? null,
+               nextMileage ?? null,
+               r.notes ?? null,
+               r.interval_km ?? null,
+               r.interval_days ?? null],
+            );
+          }
+        }
+      }
+
       return rows;
     });
     if (!rows.length) return reply.code(404).send({ error: 'Not found' });
