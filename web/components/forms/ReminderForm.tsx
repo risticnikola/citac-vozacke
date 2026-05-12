@@ -19,6 +19,17 @@ const SERVICE_OPTIONS: { value: ServiceType; label: string }[] = [
   { value: 'other',                label: 'Other' },
 ];
 
+const INTERVAL_DEFAULTS: Record<ServiceType, { km: string; days: string }> = {
+  oil_change:           { km: '10000', days: '365' },
+  small_service:        { km: '10000', days: '365' },
+  big_service:          { km: '20000', days: '730' },
+  tire_rotation:        { km: '15000', days: '365' },
+  technical_inspection: { km: '',      days: '365' },
+  registration_renewal: { km: '',      days: '365' },
+  brake_check:          { km: '30000', days: '' },
+  other:                { km: '',      days: '' },
+};
+
 interface ReminderFormProps {
   vehicleId: string;
   onSuccess?: () => void;
@@ -33,7 +44,15 @@ export function ReminderForm({ vehicleId, onSuccess, onCancel }: ReminderFormPro
   const [serviceType, setServiceType] = useState<ServiceType>('oil_change');
   const [dueDate, setDueDate]         = useState('');
   const [dueMileage, setDueMileage]   = useState('');
+  const [intervalKm, setIntervalKm]   = useState(INTERVAL_DEFAULTS.oil_change.km);
+  const [intervalDays, setIntervalDays] = useState(INTERVAL_DEFAULTS.oil_change.days);
   const [notes, setNotes]             = useState('');
+
+  function handleServiceTypeChange(value: ServiceType) {
+    setServiceType(value);
+    setIntervalKm(INTERVAL_DEFAULTS[value].km);
+    setIntervalDays(INTERVAL_DEFAULTS[value].days);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -49,6 +68,8 @@ export function ReminderForm({ vehicleId, onSuccess, onCancel }: ReminderFormPro
         serviceType,
         dueDate:      dueDate    || undefined,
         dueMileageKm: dueMileage ? parseInt(dueMileage) : undefined,
+        intervalKm:   intervalKm   ? parseInt(intervalKm)   : undefined,
+        intervalDays: intervalDays ? parseInt(intervalDays) : undefined,
         notes:        notes.trim() || undefined,
       });
       qc.invalidateQueries({ queryKey: ['reminders', vehicleId] });
@@ -64,7 +85,7 @@ export function ReminderForm({ vehicleId, onSuccess, onCancel }: ReminderFormPro
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <FormField label="Service type" htmlFor="svc-type" required>
         <select id="svc-type" className={selectClass}
-          value={serviceType} onChange={(e) => setServiceType(e.target.value as ServiceType)}>
+          value={serviceType} onChange={(e) => handleServiceTypeChange(e.target.value as ServiceType)}>
           {SERVICE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
@@ -80,6 +101,19 @@ export function ReminderForm({ vehicleId, onSuccess, onCancel }: ReminderFormPro
           <input id="due-km" type="number" min="1" className={inputClass}
             placeholder="100000" value={dueMileage}
             onChange={(e) => setDueMileage(e.target.value)} />
+        </FormField>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Repeat every (km)" htmlFor="interval-km" hint="Optional">
+          <input id="interval-km" type="number" min="1" className={inputClass}
+            placeholder="e.g. 10000" value={intervalKm}
+            onChange={(e) => setIntervalKm(e.target.value)} />
+        </FormField>
+        <FormField label="Repeat every (days)" htmlFor="interval-days" hint="Optional">
+          <input id="interval-days" type="number" min="1" className={inputClass}
+            placeholder="e.g. 365" value={intervalDays}
+            onChange={(e) => setIntervalDays(e.target.value)} />
         </FormField>
       </div>
 
