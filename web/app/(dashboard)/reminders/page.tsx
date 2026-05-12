@@ -120,7 +120,7 @@ function ReminderRow({
                 : new Date(r.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
             </span>
           )}
-          {r.due_mileage_km && (
+          {r.due_mileage_km != null && (
             <span className={cn(
               !r.completed_at && r.urgency === 'overdue' && r.km_remaining != null && r.km_remaining < 0
                 ? 'text-red-400'

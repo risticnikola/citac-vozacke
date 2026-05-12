@@ -118,6 +118,8 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
                     OR (sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
                         AND v.current_mileage_km >= sr.due_mileage_km)
                   THEN 'overdue'
+                  -- due_soon uses <= rather than BETWEEN because overdue (km_remaining <= 0)
+                  -- is already caught by the branch above; order matters here
                   WHEN (sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
                         AND (sr.due_mileage_km - v.current_mileage_km) <= 1000)
                     OR (sr.due_date IS NOT NULL AND (sr.due_date - CURRENT_DATE) <= 30)

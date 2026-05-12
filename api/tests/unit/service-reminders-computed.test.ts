@@ -79,8 +79,8 @@ describe('service_reminders computed fields', () => {
       `SELECT
          CASE
            WHEN (sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
-                 AND (sr.due_mileage_km - v.current_mileage_km) <= 1000)
-             OR (sr.due_date IS NOT NULL AND (sr.due_date - CURRENT_DATE) <= 30)
+                 AND (sr.due_mileage_km - v.current_mileage_km) BETWEEN 0 AND 1000)
+             OR (sr.due_date IS NOT NULL AND (sr.due_date - CURRENT_DATE) BETWEEN 0 AND 30)
            THEN 'due_soon' ELSE 'ok'
          END AS urgency
        FROM service_reminders sr JOIN vehicles v ON v.id = sr.vehicle_id WHERE sr.id=$1`,
@@ -120,10 +120,10 @@ describe('service_reminders computed fields', () => {
        JOIN vehicles v ON v.id = sr.vehicle_id
        WHERE sr.completed_at IS NULL
          AND (
-           (sr.due_date IS NOT NULL AND (sr.due_date - CURRENT_DATE) <= 30)
+           (sr.due_date IS NOT NULL AND (sr.due_date - CURRENT_DATE) BETWEEN 0 AND 30)
            OR
            (sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
-            AND (sr.due_mileage_km - v.current_mileage_km) <= 1000)
+            AND (sr.due_mileage_km - v.current_mileage_km) BETWEEN 0 AND 1000)
          )
          AND sr.id = $1`,
       [reminderId],
