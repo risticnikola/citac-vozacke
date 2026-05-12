@@ -26,32 +26,46 @@ export const cardReadService = {
     const cached = await safeGet(cacheKey);
     if (cached) return JSON.parse(cached);
 
-    if (input.rawDump.length === 0)
-      throw Object.assign(new Error('Empty card dump'), { statusCode: 422 });
-
-    const s3Key = `${input.tenantId}/card-reads/${input.idempotencyKey}.bin`;
-    await s3.send(new PutObjectCommand({
-      Bucket: BUCKET, Key: s3Key, Body: input.rawDump,
-      ContentType: 'application/octet-stream',
-      Metadata: { tenantId: input.tenantId, cardType: input.cardType },
-    }));
+    let s3Key: string | null = null;
+    if (input.rawDump.length > 0) {
+      s3Key = `${input.tenantId}/card-reads/${input.idempotencyKey}.bin`;
+      await s3.send(new PutObjectCommand({
+        Bucket: BUCKET, Key: s3Key, Body: input.rawDump,
+        ContentType: 'application/octet-stream',
+        Metadata: { tenantId: input.tenantId, cardType: input.cardType },
+      }));
+    }
 
     const record = await withTenantContext(pool, input.tenantId, async (client) => {
+      // Global idempotency check (card_read_idempotency has no RLS — unpartitioned)
+      const { rows: idemRows } = await client.query(
+        `SELECT card_read_id FROM card_read_idempotency WHERE idempotency_key=$1`,
+        [input.idempotencyKey],
+      );
+      if (idemRows.length) {
+        const { rows: ex } = await client.query<CardRead>(
+          'SELECT * FROM card_reads WHERE id=$1', [idemRows[0].card_read_id],
+        );
+        return ex[0];
+      }
+
       const { rows } = await client.query<CardRead>(
         `INSERT INTO card_reads
            (tenant_id,device_id,card_serial,card_type,idempotency_key,raw_dump_s3_key,parsed_data)
          VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)
-         ON CONFLICT (idempotency_key) DO NOTHING RETURNING *`,
+         RETURNING *`,
         [input.tenantId, input.deviceId, input.cardSerial, input.cardType,
          input.idempotencyKey, s3Key, JSON.stringify(input.parsedData ?? {})],
       );
-      if (rows.length === 0) {
-        const { rows: ex } = await client.query<CardRead>(
-          'SELECT * FROM card_reads WHERE idempotency_key=$1', [input.idempotencyKey],
-        );
-        return ex[0];
-      }
-      return rows[0];
+      const cardRead = rows[0];
+
+      await client.query(
+        `INSERT INTO card_read_idempotency (idempotency_key, card_read_id)
+         VALUES ($1,$2) ON CONFLICT (idempotency_key) DO NOTHING`,
+        [input.idempotencyKey, cardRead.id],
+      );
+
+      return cardRead;
     });
 
     await safeSet(cacheKey, JSON.stringify(record), IDEM_TTL);

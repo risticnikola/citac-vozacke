@@ -36,15 +36,17 @@ async function verifyDeviceToken(req: FastifyRequest, reply: FastifyReply, token
   catch { return reply.code(401).send({ error: 'Malformed device token' }); }
 
   const { sub: deviceId, kid, tenantId } = payload;
-  if (!deviceId || !kid || !tenantId) return reply.code(401).send({ error: 'Device token incomplete' });
+  if (!deviceId || !tenantId) return reply.code(401).send({ error: 'Device token incomplete' });
 
-  const cacheKey = `dev-pubkey:${deviceId}:${kid}`;
+  const cacheKey = `dev-pubkey:${deviceId}`;
   let pem = await safeGet(cacheKey);
 
   if (!pem) {
     const { rows } = await pool.query(
-      `SELECT public_key_pem, revoked_at FROM devices WHERE id=$1 AND key_id=$2`,
-      [deviceId, kid],
+      kid
+        ? `SELECT public_key_pem, key_id, revoked_at FROM devices WHERE id=$1 AND key_id=$2`
+        : `SELECT public_key_pem, key_id, revoked_at FROM devices WHERE id=$1`,
+      kid ? [deviceId, kid] : [deviceId],
     );
     if (!rows.length) return reply.code(401).send({ error: 'Unknown device' });
     if (rows[0].revoked_at) return reply.code(401).send({ error: 'Device revoked' });
@@ -63,5 +65,5 @@ async function verifyDeviceToken(req: FastifyRequest, reply: FastifyReply, token
     if (!valid || payload.exp * 1000 < Date.now()) throw new Error();
   } catch { return reply.code(401).send({ error: 'Invalid device token' }); }
 
-  req.jwtPayload = { sub: deviceId, tenantId, keyId: kid, type: 'device', iat: payload.iat, exp: payload.exp };
+  req.jwtPayload = { sub: deviceId, tenantId, keyId: kid ?? null, type: 'device', iat: payload.iat, exp: payload.exp };
 }

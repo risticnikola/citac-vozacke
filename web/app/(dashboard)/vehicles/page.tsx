@@ -112,7 +112,7 @@ export default function VehiclesPage() {
     getNextPageParam: (last) => last.hasNextPage ? last.nextCursor ?? undefined : undefined,
   });
 
-  const vehicles = data?.pages.flatMap((p) => p.items) ?? [];
+  const vehicles = data?.pages?.flatMap((p) => p.items) ?? [];
 
   return (
     <div className="flex flex-col gap-4">

@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm --version)",
+      "Bash(npx create-next-app@latest web --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --yes)",
+      "Bash(npx tsc *)",
+      "Bash(node_modules/.bin/tsx --version)",
+      "Bash(npx tsx *)",
+      "Bash(node *)",
+      "Bash(node_modules/.bin/tsx --help)",
+      "Bash(node_modules/.bin/tsx -e \"console.log\\('JWT_SECRET:', process.env.JWT_SECRET\\)\")",
+      "Bash(node_modules/.bin/tsx --env-file=.env -e \"console.log\\('JWT_SECRET:', process.env.JWT_SECRET\\)\")",
+      "Bash(node_modules/.bin/tsx watch *)",
+      "Bash(Start-Sleep -Seconds 3)",
+      "Bash(Get-Content \"C:\\\\Users\\\\nikol\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-nikol-Desktop-citac-vozacke\\\\ca95344a-68df-4335-9bfb-7c5048e63c40\\\\tasks\\\\bklihuk0z.output\" -ErrorAction SilentlyContinue)",
+      "Bash(curl *)",
+      "PowerShell(netstat *)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell(Test-NetConnection *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Get-CimInstance *)",
+      "Bash(docker compose *)",
+      "Bash(npm run *)",
+      "Bash(dir C:\\\\Users\\\\nikol\\\\Desktop\\\\citac-vozacke\\\\bridge\\\\dist-electron *)",
+      "PowerShell(head *)",
+      "PowerShell(cmd /c \"dir C:\\\\Users\\\\nikol\\\\Desktop\\\\citac-vozacke\\\\api\\\\src /s /b\")",
+      "PowerShell(cmd /c \"dir C:\\\\Users\\\\nikol\\\\Desktop\\\\citac-vozacke\\\\web\\\\hooks /b\")",
+      "PowerShell(cmd /c \"dir C:\\\\Users\\\\nikol\\\\Desktop\\\\citac-vozacke\\\\web\\\\lib /s /b\")",
+      "Bash(xargs grep -l \"devices\")"
+    ]
+  }
+}

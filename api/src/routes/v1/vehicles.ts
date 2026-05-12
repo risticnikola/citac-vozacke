@@ -110,4 +110,20 @@ export const vehiclesRoutes: FastifyPluginAsync = async (fastify) => {
     if (!rows.length) return reply.code(404).send({ error: 'Not found' });
     return reply.send(rows[0]);
   });
+
+  fastify.delete('/:id', {
+    preHandler: [fastify.authenticate, fastify.requireTenantContext],
+  }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const rows = await withTenantContext(pool, req.tenantId, async (c) => {
+      const { rows } = await c.query(
+        `UPDATE vehicles SET deleted_at = NOW()
+         WHERE id=$1 AND deleted_at IS NULL RETURNING id`,
+        [id],
+      );
+      return rows;
+    });
+    if (!rows.length) return reply.code(404).send({ error: 'Not found' });
+    return reply.code(204).send();
+  });
 };

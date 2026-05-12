@@ -1,0 +1,71 @@
+'use client';
+
+import { useEffect, useRef, useState, useCallback } from 'react';
+import type { BridgeCardEvent, BridgeWsMessage } from '@/types';
+
+const WS_URL = process.env.NEXT_PUBLIC_BRIDGE_WS_URL ?? 'ws://localhost:4001';
+const MAX_BACKOFF_MS = 30_000;
+
+export interface BridgeSocketState {
+  connected: boolean;
+  lastCard: BridgeCardEvent | null;
+  clearCard: () => void;
+}
+
+export function useBridgeSocket(): BridgeSocketState {
+  const [connected, setConnected] = useState(false);
+  const [lastCard, setLastCard]   = useState<BridgeCardEvent | null>(null);
+  const wsRef    = useRef<WebSocket | null>(null);
+  const backoff  = useRef(2_000);
+  const destroyed = useRef(false);
+
+  const connect = useCallback(() => {
+    if (destroyed.current) return;
+    try {
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setConnected(true);
+        backoff.current = 2_000;
+      };
+
+      ws.onmessage = (ev) => {
+        try {
+          const msg: BridgeWsMessage = JSON.parse(ev.data);
+          if (msg.type === 'card.read') {
+            setLastCard(msg.payload as BridgeCardEvent);
+          }
+        } catch { /* ignore malformed */ }
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        wsRef.current = null;
+        if (!destroyed.current) {
+          setTimeout(connect, backoff.current);
+          backoff.current = Math.min(backoff.current * 2, MAX_BACKOFF_MS);
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    } catch {
+      // WebSocket constructor can throw in SSR — just skip
+    }
+  }, []);
+
+  useEffect(() => {
+    destroyed.current = false;
+    connect();
+    return () => {
+      destroyed.current = true;
+      wsRef.current?.close();
+    };
+  }, [connect]);
+
+  const clearCard = useCallback(() => setLastCard(null), []);
+
+  return { connected, lastCard, clearCard };
+}

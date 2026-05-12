@@ -36,12 +36,12 @@
 - **Fixed by:** `db/migrations/V8__fix_card_type_check.sql` — restores `('vehicle_registration','id_card','other')`
 - **Was:** V4 set CHECK to `('driver','vehicle','workshop','control')` while API accepts `vehicle_registration/id_card/other`
 
-### 1.8 ⚠️ V4 migration weakens idempotency guarantee
+### 1.8 ✅ V4 migration weakens idempotency guarantee
 - **Severity:** HIGH
 - **File:** `db/migrations/V4__partition_card_reads.sql:51-53`
 - **Detail:** V1 had `idempotency_key UNIQUE` globally; V4 changed to `UNIQUE (idempotency_key, created_at)` — only unique per partition timestamp
 - **Risk:** Same card scan could be inserted twice across a partition boundary
-- **Fix needed:** Separate global idempotency table keyed by `idempotency_key` alone, or use UUID-based keys that are inherently unique
+- **Fixed by:** `db/migrations/V9__global_idempotency_table.sql` — adds `card_read_idempotency` table with `PRIMARY KEY (idempotency_key)`; `api/src/services/card-read.service.ts` — checks this table before insert instead of relying on partitioned ON CONFLICT
 
 ### 1.9 ✅ `parsed_data` always stored as empty `{}` — card data was silently dropped
 - **Fixed by:**
@@ -53,10 +53,10 @@
   - `bridge/src/main.ts` — includes `parsedData` in the enqueued item
 - **Was:** Full vehicle data from C++ binary (VIN, plate, owner, etc.) was discarded after S3 upload
 
-### 1.10 ⚠️ Rate limiter implemented but never called
+### 1.10 ✅ Rate limiter implemented but never called
 - **Severity:** MEDIUM
 - **File:** `api/src/cache/redis.ts:58-68` — `checkRateLimit()` fully implemented but dead code
-- **Fix needed:** Wire into `POST /v1/card-reads` preHandler: `checkRateLimit('rl:cardread:' + tenantId, 60_000, 60)`
+- **Fixed by:** `api/src/routes/v1/card-reads.ts` — added rate limit as third preHandler on POST route
 
 ### 1.11 ✅ Worker `package-lock.json` missing — `npm ci` was failing in CI and Docker build
 - **Fixed by:** Ran `npm install` in `worker/`; `package-lock.json` now present
@@ -65,11 +65,11 @@
 - **Fixed by:** `api/tests/helpers.ts` — `tid: tenantId` → `tenantId`
 - **Was:** All test JWTs had `tid` field; auth plugin reads `tenantId`; tenant context was always undefined in tests
 
-### 1.13 ⚠️ `card-reader.ts` listens for `card_inserted` event that C++ never sends
+### 1.13 ✅ `card-reader.ts` listens for `card_inserted` event that C++ never sends
 - **Severity:** MEDIUM
 - **File:** `bridge/src/bridge/card-reader.ts:17-19`
 - **Detail:** Auto-read on card insert silently never fires; user must always click Scan
-- **Fix needed:** Either add card polling loop to C++ binary that emits `card_inserted`, or document manual-scan-only mode and remove the dead listener
+- **Fixed by:** `bridge/src/bridge/card-reader.ts` — removed dead `unsolicited`/`card_inserted` listener; app operates in manual-scan-only mode
 
 ---
 
@@ -102,20 +102,20 @@
 - **File:** `api/src/routes/health.ts`
 - **Fix needed:** IP allowlist (scraper only) or bearer token in production nginx/ALB config
 
-### 2.6 ⚠️ Device private key defaults to empty string — bridge crashes on first upload
+### 2.6 ✅ Device private key defaults to empty string — bridge crashes on first upload
 - **Severity:** HIGH
 - **File:** `bridge/src/main.ts:14` — `DEVICE_PRIVATE_KEY ?? ''`
-- **Fix needed:** Fail fast at startup: show error dialog and quit if env var is missing
+- **Fixed by:** `bridge/src/main.ts` — checks `DEVICE_ID`, `DEVICE_PRIVATE_KEY`, `TENANT_ID` at startup; shows `dialog.showErrorBox` and quits if any are missing
 
-### 2.7 ⚠️ No device provisioning flow
+### 2.7 ✅ No device provisioning flow
 - **Severity:** HIGH
 - **Detail:** No API endpoint to register a device. Every device requires a manual DB INSERT with RSA public key.
-- **Fix needed:** `POST /v1/admin/devices` — accepts public key PEM, returns device credentials
+- **Fixed by:** `api/src/routes/v1/admin/devices.ts` — `POST /v1/admin/devices` accepts public key PEM, enforces `max_devices` limit, restricted to `garage_admin`/`saas_admin`
 
-### 2.8 ⚠️ No user login endpoint — JWT issuance completely missing
+### 2.8 ✅ No user login endpoint — JWT issuance completely missing
 - **Severity:** HIGH
 - **Detail:** API verifies JWTs but no endpoint issues them. Browser users cannot authenticate at all.
-- **Fix needed:** `POST /v1/auth/login` with bcrypt + JWT response, or integrate Keycloak/Auth0
+- **Fixed by:** `api/src/routes/v1/auth.ts` — `POST /v1/auth/login` with bcrypt password verify + `@fastify/jwt` token response (8h expiry)
 
 ### 2.9 ⚠️ Flyway CI job uses postgres superuser instead of migration_role
 - **Severity:** LOW
@@ -173,11 +173,11 @@ C++ binary only responds to explicit `read_card` commands. The `card_inserted` u
 ### 4.9 ⚠️ Partition maintenance not automated
 V4 creates partitions for 2026-2027 only. After 2027-12, all card read inserts will fail. Needs `pg_partman` + `pg_cron`.
 
-### 4.10 ⚠️ No `DELETE /v1/vehicles/:id` endpoint
-`vehicles.ts` has GET, POST, PATCH — no DELETE. Soft-delete column is now present (V6 migration), but the endpoint still needs to be added.
+### 4.10 ✅ No `DELETE /v1/vehicles/:id` endpoint
+- **Fixed by:** `api/src/routes/v1/vehicles.ts` — added `DELETE /:id` handler (sets `deleted_at = NOW()`, returns 204)
 
-### 4.11 ⚠️ No report request endpoint
-No `POST /v1/reports` to trigger PDF generation. The consumer works but there's no way to enqueue a report from the API.
+### 4.11 ✅ No report request endpoint
+- **Fixed by:** `api/src/routes/v1/reports.ts` — `POST /v1/reports` inserts pending report and emits `report.requested` SQS event
 
 ### 4.12 ⚠️ No WebSocket auth on bridge WS server
 `bridge/src/server/websocket.ts` only checks Origin header. Any local process can connect and receive all card data in real time.

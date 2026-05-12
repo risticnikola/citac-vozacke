@@ -3,10 +3,11 @@ import { FastifyPluginAsync } from 'fastify';
 import { Type, Static } from '@sinclair/typebox';
 import { cardReadService } from '../../services/card-read.service.js';
 import { cardReadLatency, cardReadTotal, failedReadsTotal } from '../../metrics.js';
+import { checkRateLimit } from '../../cache/redis.js';
 
 const CardReadBodySchema = Type.Object({
   deviceId:   Type.String({ format: 'uuid' }),
-  rawDump:    Type.String({ minLength: 1 }),
+  rawDump:    Type.Optional(Type.String({ minLength: 1 })),
   cardSerial: Type.String({ maxLength: 64 }),
   cardType:   Type.Union([
     Type.Literal('vehicle_registration'),
@@ -33,14 +34,21 @@ export const cardReadsRoutes: FastifyPluginAsync = async (fastify) => {
       body: CardReadBodySchema,
       headers: CardReadHeadersSchema,
     },
-    preHandler: [fastify.authenticate, fastify.requireTenantContext],
+    preHandler: [
+      fastify.authenticate,
+      fastify.requireTenantContext,
+      async (req: any, reply: any) => {
+        const allowed = await checkRateLimit(`rl:cardread:${req.tenantId}`, 60_000, 60);
+        if (!allowed) return reply.code(429).send({ error: 'Rate limit exceeded' });
+      },
+    ],
   }, async (req, reply) => {
     const tenantId = req.tenantId;
     const stop = cardReadLatency.startTimer({ tenant_id: tenantId });
     try {
       const result = await cardReadService.process({
         tenantId, deviceId: req.body.deviceId,
-        rawDump: Buffer.from(req.body.rawDump, 'base64'),
+        rawDump: req.body.rawDump ? Buffer.from(req.body.rawDump, 'base64') : Buffer.alloc(0),
         cardSerial: req.body.cardSerial, cardType: req.body.cardType,
         idempotencyKey: req.headers['idempotency-key'],
         parsedData: req.body.parsedData ?? {},
