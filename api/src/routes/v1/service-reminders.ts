@@ -33,6 +33,7 @@ const ReminderQuerySchema = Type.Object({
   status:      Type.Optional(Type.Union([Type.Literal('open'), Type.Literal('completed')])),
   dueBefore:   Type.Optional(Type.String({ format: 'date' })),   // YYYY-MM-DD
   overdue:     Type.Optional(Type.Boolean()),                     // date OR mileage overdue
+  dueSoon:     Type.Optional(Type.Boolean()),
   cursor:      Type.Optional(Type.String()),
   limit:       Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
 });
@@ -43,7 +44,7 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
     schema: { querystring: ReminderQuerySchema },
     preHandler: [fastify.authenticate, fastify.requireTenantContext],
   }, async (req, reply) => {
-    const { vehicleId, serviceType, status, dueBefore, overdue, limit = 20, cursor } = req.query;
+    const { vehicleId, serviceType, status, dueBefore, overdue, dueSoon, limit = 20, cursor } = req.query;
     let decoded: { id: string; dueDate: string | null } | null = null;
     if (cursor) {
       try { decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString()); }
@@ -74,6 +75,15 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
         )`);
       }
 
+      if (dueSoon) {
+        conds.push(`sr.completed_at IS NULL AND (
+          (sr.due_date IS NOT NULL AND (sr.due_date - CURRENT_DATE) <= 30)
+          OR
+          (sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
+           AND (sr.due_mileage_km - v.current_mileage_km) <= 1000)
+        )`);
+      }
+
       if (decoded) {
         conds.push(`(sr.due_date, sr.id) > ($${p++}::date, $${p++})`);
         vals.push(decoded.dueDate, decoded.id);
@@ -91,7 +101,29 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
                   WHEN sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
                        AND v.current_mileage_km >= sr.due_mileage_km THEN true
                   ELSE false
-                END AS is_overdue
+                END AS is_overdue,
+                CASE
+                  WHEN sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
+                  THEN sr.due_mileage_km - v.current_mileage_km
+                  ELSE NULL
+                END AS km_remaining,
+                CASE
+                  WHEN sr.due_date IS NOT NULL
+                  THEN (sr.due_date - CURRENT_DATE)::int
+                  ELSE NULL
+                END AS days_remaining,
+                CASE
+                  WHEN sr.completed_at IS NOT NULL THEN 'ok'
+                  WHEN (sr.due_date IS NOT NULL AND sr.due_date < CURRENT_DATE)
+                    OR (sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
+                        AND v.current_mileage_km >= sr.due_mileage_km)
+                  THEN 'overdue'
+                  WHEN (sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
+                        AND (sr.due_mileage_km - v.current_mileage_km) <= 1000)
+                    OR (sr.due_date IS NOT NULL AND (sr.due_date - CURRENT_DATE) <= 30)
+                  THEN 'due_soon'
+                  ELSE 'ok'
+                END AS urgency
          FROM service_reminders sr
          JOIN vehicles v ON v.id = sr.vehicle_id
          LEFT JOIN users u ON u.id = sr.completed_by
