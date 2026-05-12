@@ -80,7 +80,11 @@ function ReminderRow({
           </span>
           {!r.completed_at && r.urgency === 'overdue' && (
             <Badge variant="danger">
-              {r.days_remaining != null && r.days_remaining < 0 ? 'Date overdue' : 'Mileage overdue'}
+              {r.days_remaining != null && r.days_remaining < 0 && r.km_remaining != null && r.km_remaining < 0
+                ? 'Overdue'
+                : r.days_remaining != null && r.days_remaining < 0
+                ? 'Date overdue'
+                : 'Mileage overdue'}
             </Badge>
           )}
           {!r.completed_at && r.urgency === 'due_soon' && <Badge variant="warning">Due soon</Badge>}
@@ -282,7 +286,7 @@ export default function RemindersPage() {
             </div>
           ))
         ) : (
-          // Flat list (overdue, due_7, completed, type-filtered)
+          // Flat list (overdue, due_soon, completed, type-filtered)
           reminders.map((r) => (
             <ReminderRow
               key={r.id}
