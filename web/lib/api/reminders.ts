@@ -10,11 +10,12 @@ export const remindersApi = {
   create: (body: {
     vehicleId: string; serviceType: ServiceType;
     dueDate?: string; dueMileageKm?: number; notes?: string;
+    intervalKm?: number; intervalDays?: number;
   }) => apiClient.post<ServiceReminder>('/v1/service-reminders', body).then((r) => r.data),
 
   update: (id: string, body: Partial<{
     serviceType: ServiceType; dueDate: string; dueMileageKm: number;
-    notes: string; completed: boolean;
+    notes: string; completed: boolean; skipRenewal: boolean;
   }>) => apiClient.patch<ServiceReminder>(`/v1/service-reminders/${id}`, body).then((r) => r.data),
 
   remove: (id: string) => apiClient.delete(`/v1/service-reminders/${id}`),

@@ -73,6 +73,8 @@ export interface ServiceReminder {
   km_remaining: number | null;
   days_remaining: number | null;
   urgency: 'overdue' | 'due_soon' | 'ok';
+  interval_km: number | null;
+  interval_days: number | null;
   plate: string | null;
   vin: string | null;
   make: string | null;
