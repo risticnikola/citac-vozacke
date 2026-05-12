@@ -1,4 +1,6 @@
 build/
+dist
+electron-dist
 *.def
 *.user
 .vs/
