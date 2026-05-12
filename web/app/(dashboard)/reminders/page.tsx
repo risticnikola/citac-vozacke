@@ -65,9 +65,12 @@ function ReminderRow({
   r, onComplete,
 }: {
   r: ServiceReminder;
-  onComplete?: () => void;
+  onComplete?: (skipRenewal: boolean) => void;
 }) {
   const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [renewChecked, setRenewChecked] = useState(true);
+  const hasInterval = r.interval_km != null || r.interval_days != null;
   const vehicleLabel = [r.make, r.model, r.year].filter(Boolean).join(' ') || 'Unknown vehicle';
 
   return (
@@ -139,11 +142,44 @@ function ReminderRow({
         </div>
       </div>
 
+      {confirming && (
+        <div className="flex shrink-0 items-center gap-3 border-l border-neutral-700 pl-3">
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-400">
+            <input
+              type="checkbox"
+              checked={renewChecked}
+              onChange={(e) => setRenewChecked(e.target.checked)}
+              className="accent-orange-500"
+            />
+            Create next reminder
+          </label>
+          <button
+            onClick={() => { setConfirming(false); onComplete!(!renewChecked); }}
+            className="rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-500"
+          >
+            Complete
+          </button>
+          <button
+            onClick={() => setConfirming(false)}
+            className="text-xs text-neutral-500 hover:text-neutral-300"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex shrink-0 items-center gap-2">
-        {onComplete && !r.completed_at && (
+        {onComplete && !r.completed_at && !confirming && (
           <button
-            onClick={onComplete}
+            onClick={() => {
+              if (hasInterval) {
+                setRenewChecked(true);
+                setConfirming(true);
+              } else {
+                onComplete(false);
+              }
+            }}
             title="Mark complete"
             className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-600 transition-colors hover:bg-green-950/40 hover:text-green-400"
           >
@@ -181,7 +217,8 @@ export default function RemindersPage() {
   });
 
   const complete = useMutation({
-    mutationFn: (id: string) => remindersApi.update(id, { completed: true }),
+    mutationFn: ({ id, skipRenewal }: { id: string; skipRenewal: boolean }) =>
+      remindersApi.update(id, { completed: true, skipRenewal }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reminders-dash'] });
       qc.invalidateQueries({ queryKey: ['reminders'] });
@@ -280,7 +317,7 @@ export default function RemindersPage() {
                 <ReminderRow
                   key={r.id}
                   r={r}
-                  onComplete={preset !== 'completed' ? () => complete.mutate(r.id) : undefined}
+                  onComplete={preset !== 'completed' ? (skipRenewal) => complete.mutate({ id: r.id, skipRenewal }) : undefined}
                 />
               ))}
             </div>
@@ -291,7 +328,7 @@ export default function RemindersPage() {
             <ReminderRow
               key={r.id}
               r={r}
-              onComplete={preset !== 'completed' ? () => complete.mutate(r.id) : undefined}
+              onComplete={preset !== 'completed' ? (skipRenewal) => complete.mutate({ id: r.id, skipRenewal }) : undefined}
             />
           ))
         )}
