@@ -183,6 +183,12 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
     const completedBy = completed ? req.jwtPayload.sub : null;
 
     const rows = await withTenantContext(pool, req.tenantId, async (c) => {
+      // Read current state so renewal only fires on transition from open → complete
+      const { rows: existing } = await c.query(
+        `SELECT completed_at FROM service_reminders WHERE id=$1`, [id],
+      );
+      const wasAlreadyCompleted = (existing[0]?.completed_at ?? null) != null;
+
       const { rows } = await c.query(
         `UPDATE service_reminders SET
            service_type   = COALESCE($2, service_type),
@@ -205,8 +211,8 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
          notes ?? null, completed ?? null, completedBy],
       );
 
-      // Auto-renewal: fires only when marking complete and not explicitly skipped
-      if (rows.length && completed === true && !skipRenewal) {
+      // Auto-renewal: fires only on transition from open → complete, not on repeat calls
+      if (rows.length && completed === true && !skipRenewal && !wasAlreadyCompleted) {
         const r = rows[0];
         if (r.interval_km != null || r.interval_days != null) {
           const { rows: vRows } = await c.query(
@@ -225,7 +231,7 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
                VALUES ($1,$2,$3,
                  CASE WHEN $4::int IS NOT NULL THEN CURRENT_DATE + ($4::int || ' days')::INTERVAL ELSE NULL END,
                  $5,$6,$7,$8)`,
-              [req.tenantId, r.vehicle_id, r.service_type,
+              [r.tenant_id, r.vehicle_id, r.service_type,
                r.interval_days ?? null,
                nextMileage ?? null,
                r.notes ?? null,
