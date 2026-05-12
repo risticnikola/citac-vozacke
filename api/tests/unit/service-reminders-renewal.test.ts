@@ -2,11 +2,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
 import 'dotenv/config';
 import pg from 'pg';
+import { buildTestApp, makeUserToken } from '../helpers.js';
 
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const TENANT_ID = randomUUID();
+const USER_ID   = randomUUID();
 let vehicleId: string;
 let vehicleNoMileageId: string;
 
@@ -18,6 +20,10 @@ beforeAll(async () => {
   await exec(
     `INSERT INTO tenants(id, name, slug, plan) VALUES ($1,'T',$2,'starter') ON CONFLICT DO NOTHING`,
     [TENANT_ID, `test-rnwl-${TENANT_ID}`],
+  );
+  await exec(
+    `INSERT INTO users(id, tenant_id, email, role) VALUES ($1,$2,$3,'mechanic')`,
+    [USER_ID, TENANT_ID, `rnwl-${TENANT_ID}@test.local`],
   );
   const v1 = await exec(
     `INSERT INTO vehicles(tenant_id, plate, current_mileage_km) VALUES ($1,'RNWL-01',90000) RETURNING id`,
@@ -34,6 +40,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await exec(`DELETE FROM service_reminders WHERE tenant_id=$1`, [TENANT_ID]);
   await exec(`DELETE FROM vehicles WHERE tenant_id=$1`, [TENANT_ID]);
+  await exec(`DELETE FROM users WHERE tenant_id=$1`, [TENANT_ID]);
   await exec(`DELETE FROM tenants WHERE id=$1`, [TENANT_ID]);
   await pool.end();
 });
@@ -152,22 +159,42 @@ describe('service reminder auto-renewal', () => {
        VALUES ($1,$2,'big_service',120000,20000) RETURNING *`,
       [TENANT_ID, vehicleId],
     );
-    // First completion — simulates wasAlreadyCompleted=false path
-    await simulateRenewal(rem, 90000);
-    const { rows: after1 } = await exec(
-      `SELECT COUNT(*) AS n FROM service_reminders WHERE tenant_id=$1 AND completed_at IS NULL AND id != $2`,
-      [TENANT_ID, rem.id],
-    );
-    const countAfterFirst = parseInt(after1[0].n);
 
-    // Second completion — should NOT create another renewal
-    // (simulateRenewal called again with same rem; production route guards this with wasAlreadyCompleted)
-    // We verify the guard by NOT calling simulateRenewal a second time
-    // and instead asserting count is still the same as after the first renewal
-    const { rows: after2 } = await exec(
-      `SELECT COUNT(*) AS n FROM service_reminders WHERE tenant_id=$1 AND completed_at IS NULL AND id != $2`,
-      [TENANT_ID, rem.id],
+    const { rows: before } = await exec(
+      `SELECT COUNT(*) AS n FROM service_reminders WHERE vehicle_id=$1 AND id != $2 AND completed_at IS NULL`,
+      [vehicleId, rem.id],
     );
-    expect(parseInt(after2[0].n)).toBe(countAfterFirst); // no additional reminder
+    const countBefore = parseInt(before[0].n, 10);
+
+    const app = await buildTestApp();
+    await app.ready();
+    const token = makeUserToken(TENANT_ID, USER_ID);
+
+    // First PATCH: open → complete; wasAlreadyCompleted=false so renewal fires
+    const r1 = await app.inject({
+      method: 'PATCH',
+      url: `/v1/service-reminders/${rem.id}`,
+      headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: JSON.stringify({ completed: true }),
+    });
+    expect(r1.statusCode).toBe(200);
+
+    // Second PATCH: already complete; wasAlreadyCompleted=true so renewal must NOT fire
+    const r2 = await app.inject({
+      method: 'PATCH',
+      url: `/v1/service-reminders/${rem.id}`,
+      headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: JSON.stringify({ completed: true }),
+    });
+    expect(r2.statusCode).toBe(200);
+
+    await app.close();
+
+    // Count must increase by exactly 1 (not 2) — second PATCH must not fire renewal
+    const { rows: after } = await exec(
+      `SELECT COUNT(*) AS n FROM service_reminders WHERE vehicle_id=$1 AND id != $2 AND completed_at IS NULL`,
+      [vehicleId, rem.id],
+    );
+    expect(parseInt(after[0].n, 10)).toBe(countBefore + 1);
   });
 });
