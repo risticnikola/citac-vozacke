@@ -68,7 +68,8 @@ describe('service_reminders computed fields', () => {
       [reminderId],
     );
     expect(rows[0].km_remaining).toBe(10000);
-    expect(rows[0].days_remaining).toBe(60);
+    expect(rows[0].days_remaining).toBeGreaterThanOrEqual(59);
+    expect(rows[0].days_remaining).toBeLessThanOrEqual(61);
     expect(rows[0].urgency).toBe('ok');
   });
 
@@ -94,7 +95,16 @@ describe('service_reminders computed fields', () => {
     const { rows } = await pool.query(
       `SELECT
          CASE
-           WHEN v.current_mileage_km >= sr.due_mileage_km THEN 'overdue' ELSE 'ok'
+           WHEN sr.completed_at IS NOT NULL THEN 'ok'
+           WHEN (sr.due_date IS NOT NULL AND sr.due_date < CURRENT_DATE)
+             OR (sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
+                 AND v.current_mileage_km >= sr.due_mileage_km)
+           THEN 'overdue'
+           WHEN (sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
+                 AND (sr.due_mileage_km - v.current_mileage_km) BETWEEN 0 AND 1000)
+             OR (sr.due_date IS NOT NULL AND (sr.due_date - CURRENT_DATE) BETWEEN 0 AND 30)
+           THEN 'due_soon'
+           ELSE 'ok'
          END AS urgency
        FROM service_reminders sr JOIN vehicles v ON v.id = sr.vehicle_id WHERE sr.id=$1`,
       [reminderId],

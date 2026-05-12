@@ -77,10 +77,10 @@ export const serviceRemindersRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (dueSoon) {
         conds.push(`sr.completed_at IS NULL AND (
-          (sr.due_date IS NOT NULL AND (sr.due_date - CURRENT_DATE) <= 30)
+          (sr.due_date IS NOT NULL AND (sr.due_date - CURRENT_DATE) BETWEEN 0 AND 30)
           OR
           (sr.due_mileage_km IS NOT NULL AND v.current_mileage_km IS NOT NULL
-           AND (sr.due_mileage_km - v.current_mileage_km) <= 1000)
+           AND (sr.due_mileage_km - v.current_mileage_km) BETWEEN 0 AND 1000)
         )`);
       }
 
