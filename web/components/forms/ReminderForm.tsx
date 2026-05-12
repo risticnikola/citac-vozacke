@@ -67,9 +67,9 @@ export function ReminderForm({ vehicleId, onSuccess, onCancel }: ReminderFormPro
         vehicleId,
         serviceType,
         dueDate:      dueDate    || undefined,
-        dueMileageKm: dueMileage ? parseInt(dueMileage) : undefined,
-        intervalKm:   intervalKm   ? parseInt(intervalKm)   : undefined,
-        intervalDays: intervalDays ? parseInt(intervalDays) : undefined,
+        dueMileageKm: dueMileage ? parseInt(dueMileage, 10) : undefined,
+        intervalKm:   intervalKm   ? parseInt(intervalKm, 10)   : undefined,
+        intervalDays: intervalDays ? parseInt(intervalDays, 10) : undefined,
         notes:        notes.trim() || undefined,
       });
       qc.invalidateQueries({ queryKey: ['reminders', vehicleId] });
