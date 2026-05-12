@@ -64,7 +64,7 @@ export function VehicleForm({ vehicle, prefill, onSuccess, onCancel }: VehicleFo
       if (vehicle) qc.invalidateQueries({ queryKey: ['vehicle', vehicle.id] });
       onSuccess?.(result);
     } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Failed to save. Try again.');
+      setError(err?.response?.data?.error ?? err?.response?.data?.message ?? 'Failed to save. Try again.');
     } finally {
       setSaving(false);
     }
