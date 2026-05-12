@@ -21,15 +21,9 @@ const SERVICE_LABELS: Record<string, string> = {
 
 const SERVICE_TYPES = Object.entries(SERVICE_LABELS) as [ServiceType, string][];
 
-function addDays(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
 // ─── Filter presets ───────────────────────────────────────────────────────────
 
-type Preset = 'all_open' | 'overdue' | 'due_7' | 'due_30' | 'completed';
+type Preset = 'all_open' | 'overdue' | 'due_soon' | 'completed';
 
 interface PresetDef {
   key: Preset;
@@ -52,16 +46,10 @@ const PRESETS: PresetDef[] = [
     params: () => ({ status: 'open', overdue: true }),
   },
   {
-    key: 'due_7',
-    label: 'Due in 7 days',
+    key: 'due_soon',
+    label: 'Due soon',
     icon: Clock,
-    params: () => ({ status: 'open', dueBefore: addDays(7) }),
-  },
-  {
-    key: 'due_30',
-    label: 'Due in 30 days',
-    icon: Clock,
-    params: () => ({ status: 'open', dueBefore: addDays(30) }),
+    params: () => ({ status: 'open', dueSoon: true }),
   },
   {
     key: 'completed',
@@ -90,7 +78,12 @@ function ReminderRow({
           <span className="text-sm font-medium text-neutral-100">
             {SERVICE_LABELS[r.service_type] ?? r.service_type}
           </span>
-          {r.is_overdue   && <Badge variant="danger">Overdue</Badge>}
+          {!r.completed_at && r.urgency === 'overdue' && (
+            <Badge variant="danger">
+              {r.days_remaining != null && r.days_remaining < 0 ? 'Date overdue' : 'Mileage overdue'}
+            </Badge>
+          )}
+          {!r.completed_at && r.urgency === 'due_soon' && <Badge variant="warning">Due soon</Badge>}
           {r.completed_at && <Badge variant="success">Done</Badge>}
         </div>
 
@@ -107,21 +100,35 @@ function ReminderRow({
         {/* Due triggers */}
         <div className="mt-1 flex flex-wrap gap-3 text-xs text-neutral-500">
           {r.due_date && (
-            <span className={cn(r.is_overdue && !r.completed_at && 'text-red-400')}>
-              Due {new Date(r.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+            <span className={cn(
+              !r.completed_at && r.urgency === 'overdue' && r.days_remaining != null && r.days_remaining < 0
+                ? 'text-red-400'
+                : !r.completed_at && r.urgency === 'due_soon' && r.days_remaining != null && r.days_remaining >= 0
+                  ? 'text-amber-400'
+                  : '',
+            )}>
+              {r.days_remaining != null && !r.completed_at
+                ? r.days_remaining < 0
+                  ? `${Math.abs(r.days_remaining)}d overdue`
+                  : r.days_remaining === 0
+                  ? 'Due today'
+                  : `${r.days_remaining}d left`
+                : new Date(r.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
             </span>
           )}
           {r.due_mileage_km && (
             <span className={cn(
-              r.current_mileage_km != null && r.current_mileage_km >= r.due_mileage_km
-                && !r.completed_at && 'text-red-400',
+              !r.completed_at && r.urgency === 'overdue' && r.km_remaining != null && r.km_remaining < 0
+                ? 'text-red-400'
+                : !r.completed_at && r.urgency === 'due_soon' && r.km_remaining != null && r.km_remaining >= 0
+                  ? 'text-amber-400'
+                  : '',
             )}>
-              Due at {r.due_mileage_km.toLocaleString()} km
-              {r.current_mileage_km != null && (
-                <span className="ml-1 text-neutral-600">
-                  (now {r.current_mileage_km.toLocaleString()} km)
-                </span>
-              )}
+              {r.km_remaining != null && !r.completed_at
+                ? r.km_remaining < 0
+                  ? `${Math.abs(r.km_remaining).toLocaleString()} km overdue`
+                  : `${r.km_remaining.toLocaleString()} km left`
+                : `Due at ${r.due_mileage_km.toLocaleString()} km`}
             </span>
           )}
           {r.notes && <span className="italic text-neutral-600">"{r.notes}"</span>}
@@ -180,7 +187,7 @@ export default function RemindersPage() {
   const reminders = data?.items ?? [];
 
   // Group by service type when showing "all open" without a type filter
-  const grouped = (preset === 'all_open' || preset === 'due_30' || preset === 'due_7') && !serviceType
+  const grouped = preset === 'all_open' && !serviceType
     ? SERVICE_TYPES
         .map(([type, label]) => ({
           type, label,
@@ -250,6 +257,7 @@ export default function RemindersPage() {
             </div>
             <p className="text-sm text-neutral-500">
               {preset === 'overdue' ? 'No overdue reminders' :
+               preset === 'due_soon' ? 'No reminders due soon' :
                preset === 'completed' ? 'No completed reminders' :
                'No reminders match this filter'}
             </p>

@@ -4,7 +4,7 @@ import type { ServiceReminder, Paginated, ServiceType } from '@/types';
 export const remindersApi = {
   list: (params?: {
     vehicleId?: string; serviceType?: string; status?: 'open' | 'completed';
-    dueBefore?: string; overdue?: boolean; cursor?: string; limit?: number;
+    dueBefore?: string; overdue?: boolean; dueSoon?: boolean; cursor?: string; limit?: number;
   }) => apiClient.get<Paginated<ServiceReminder>>('/v1/service-reminders', { params }).then((r) => r.data),
 
   create: (body: {
