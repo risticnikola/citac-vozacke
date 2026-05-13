@@ -79,12 +79,19 @@ export const vehiclesRoutes = async (fastify) => {
         preHandler: [fastify.authenticate, fastify.requireTenantContext],
     }, async (req, reply) => {
         const b = req.body;
-        const rows = await withTenantContext(pool, req.tenantId, async (c) => {
-            const { rows } = await c.query(`INSERT INTO vehicles (tenant_id,vin,plate,make,model,year,owner_name,owner_phone)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`, [req.tenantId, b.vin, b.plate, b.make, b.model, b.year, b.ownerName, b.ownerPhone]);
-            return rows;
-        });
-        return reply.code(201).send(rows[0]);
+        try {
+            const rows = await withTenantContext(pool, req.tenantId, async (c) => {
+                const { rows } = await c.query(`INSERT INTO vehicles (tenant_id,vin,plate,make,model,year,owner_name,owner_phone)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`, [req.tenantId, b.vin, b.plate, b.make, b.model, b.year, b.ownerName, b.ownerPhone]);
+                return rows;
+            });
+            return reply.code(201).send(rows[0]);
+        }
+        catch (err) {
+            if (err.code === '23505')
+                return reply.code(409).send({ error: 'A vehicle with this VIN already exists.' });
+            throw err;
+        }
     });
     fastify.patch('/:id', {
         schema: { body: VehicleBody },
@@ -92,15 +99,22 @@ export const vehiclesRoutes = async (fastify) => {
     }, async (req, reply) => {
         const { id } = req.params;
         const b = req.body;
-        const rows = await withTenantContext(pool, req.tenantId, async (c) => {
-            const { rows } = await c.query(`UPDATE vehicles SET vin=$2,plate=$3,make=$4,model=$5,year=$6,
-           owner_name=$7,owner_phone=$8,updated_at=NOW()
-         WHERE id=$1 AND deleted_at IS NULL RETURNING *`, [id, b.vin, b.plate, b.make, b.model, b.year, b.ownerName, b.ownerPhone]);
-            return rows;
-        });
-        if (!rows.length)
-            return reply.code(404).send({ error: 'Not found' });
-        return reply.send(rows[0]);
+        try {
+            const rows = await withTenantContext(pool, req.tenantId, async (c) => {
+                const { rows } = await c.query(`UPDATE vehicles SET vin=$2,plate=$3,make=$4,model=$5,year=$6,
+             owner_name=$7,owner_phone=$8,updated_at=NOW()
+           WHERE id=$1 AND deleted_at IS NULL RETURNING *`, [id, b.vin, b.plate, b.make, b.model, b.year, b.ownerName, b.ownerPhone]);
+                return rows;
+            });
+            if (!rows.length)
+                return reply.code(404).send({ error: 'Not found' });
+            return reply.send(rows[0]);
+        }
+        catch (err) {
+            if (err.code === '23505')
+                return reply.code(409).send({ error: 'A vehicle with this VIN already exists.' });
+            throw err;
+        }
     });
     fastify.delete('/:id', {
         preHandler: [fastify.authenticate, fastify.requireTenantContext],
