@@ -58,8 +58,9 @@ export async function buildApp(opts: { logger?: boolean | object } = {}): Promis
     preHandler: [app.authenticate, app.requireTenantContext],
   }, async (req, reply) => {
     const { getBridgeSocketsForTenant } = await import('./hub/bridge-hub.js');
+    const { WebSocket } = await import('ws');
     const sockets = getBridgeSocketsForTenant(req.tenantId);
-    const active = [...sockets].filter((ws) => ws.readyState === 1);
+    const active = [...sockets].filter((ws) => ws.readyState === WebSocket.OPEN);
     if (!active.length) return reply.code(503).send({ error: 'No bridge connected for this tenant' });
     active[0].send(JSON.stringify({ type: 'scan' }));
     return reply.code(202).send({ ok: true });

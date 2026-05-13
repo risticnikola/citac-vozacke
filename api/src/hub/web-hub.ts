@@ -4,8 +4,6 @@ import { IncomingMessage, Server } from 'http';
 import { verify } from 'jsonwebtoken';
 import { bridgeEvents, type CardDataEvent } from './bridge-hub.js';
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-
 const webSockets = new Map<string, Set<WebSocket>>();
 
 export function broadcastToTenant(tenantId: string, msg: object): void {
@@ -15,6 +13,18 @@ export function broadcastToTenant(tenantId: string, msg: object): void {
     if (ws.readyState === WebSocket.OPEN) ws.send(payload);
   }
 }
+
+// Register once at module load — bridgeEvents is a module singleton
+bridgeEvents.on('card_data', (event: CardDataEvent) => {
+  broadcastToTenant(event.tenantId, {
+    type: 'card.read',
+    payload: {
+      cardType:   event.cardType,
+      cardSerial: event.cardSerial,
+      parsedData: event.parsedData,
+    },
+  });
+});
 
 export function attachWebHub(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
@@ -32,7 +42,9 @@ export function attachWebHub(server: Server): void {
 
     let tenantId: string;
     try {
-      const payload = verify(token, JWT_SECRET) as Record<string, string>;
+      const secret = process.env.JWT_SECRET;
+      if (!secret) throw new Error('JWT_SECRET not configured');
+      const payload = verify(token, secret) as Record<string, string>;
       tenantId = payload.tenantId;
       if (!tenantId) throw new Error('missing tenantId');
     } catch {
@@ -46,16 +58,5 @@ export function attachWebHub(server: Server): void {
 
     ws.on('close', () => webSockets.get(tenantId)?.delete(ws));
     ws.on('error', () => ws.close());
-  });
-
-  bridgeEvents.on('card_data', (event: CardDataEvent) => {
-    broadcastToTenant(event.tenantId, {
-      type: 'card.read',
-      payload: {
-        cardType:   event.cardType,
-        cardSerial: event.cardSerial,
-        parsedData: event.parsedData,
-      },
-    });
   });
 }
