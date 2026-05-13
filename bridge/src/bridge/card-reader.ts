@@ -14,8 +14,8 @@ export class CardReader extends EventEmitter {
     this.wrapper = new CppWrapper();
     await this.wrapper.start(readerName);
 
-    this.wrapper.on('exit', (code) => this.emit('disconnect', code));
-    this.wrapper.on('error', (err) => this.emit('error', err));
+    this.wrapper.on('exit', (code: number | null) => this.emit('disconnect', code));
+    this.wrapper.on('error', (err: Error) => this.emit('error', err));
   }
 
   async readCard(): Promise<CardData> {
@@ -27,7 +27,7 @@ export class CardReader extends EventEmitter {
     const cardData: CardData = {
       cardType,
       cardSerial: raw.cardSerial,
-      rawDump: raw.rawDump,
+      rawDump: Buffer.from(raw.rawDump as string, 'base64'),
       parsedData: parseCardOutput(raw.parsedData as any),
     };
 

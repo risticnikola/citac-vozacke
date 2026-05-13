@@ -34,7 +34,9 @@
       "Bash(git -C \"C:\\\\Users\\\\nikol\\\\Desktop\\\\citac-vozacke\" commit --amend --no-edit)",
       "Bash(git *)",
       "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
-      "Bash(xargs grep -l \"service_reminder\")"
+      "Bash(xargs grep -l \"service_reminder\")",
+      "PowerShell(New-Item *)",
+      "Bash(npm test *)"
     ]
   }
 }
