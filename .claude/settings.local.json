@@ -27,7 +27,14 @@
       "PowerShell(cmd /c \"dir C:\\\\Users\\\\nikol\\\\Desktop\\\\citac-vozacke\\\\api\\\\src /s /b\")",
       "PowerShell(cmd /c \"dir C:\\\\Users\\\\nikol\\\\Desktop\\\\citac-vozacke\\\\web\\\\hooks /b\")",
       "PowerShell(cmd /c \"dir C:\\\\Users\\\\nikol\\\\Desktop\\\\citac-vozacke\\\\web\\\\lib /s /b\")",
-      "Bash(xargs grep -l \"devices\")"
+      "Bash(xargs grep -l \"devices\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git -C \"C:\\\\Users\\\\nikol\\\\Desktop\\\\citac-vozacke\" add db/migrations/V14__vin_unique.sql)",
+      "Bash(git -C \"C:\\\\Users\\\\nikol\\\\Desktop\\\\citac-vozacke\" commit --amend --no-edit)",
+      "Bash(git *)",
+      "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
+      "Bash(xargs grep -l \"service_reminder\")"
     ]
   }
 }

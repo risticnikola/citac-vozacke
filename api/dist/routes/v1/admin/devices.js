@@ -41,6 +41,18 @@ export const adminDevicesRoutes = async (fastify) => {
        ORDER BY created_at DESC`, [req.tenantId]);
         return reply.send(rows);
     });
+    fastify.delete('/:id', {
+        preHandler: [fastify.authenticate, fastify.requireTenantContext],
+    }, async (req, reply) => {
+        const jwt = req.jwtPayload;
+        if (jwt.type !== 'user' || !['garage_admin', 'saas_admin'].includes(jwt.role))
+            return reply.code(403).send({ error: 'Forbidden' });
+        const { rowCount } = await pool.query(`UPDATE devices SET revoked_at = now()
+       WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL`, [req.params.id, req.tenantId]);
+        if (!rowCount)
+            return reply.code(404).send({ error: 'Device not found' });
+        return reply.code(204).send();
+    });
     fastify.post('/generate-token', {
         schema: { body: GenerateTokenBody },
         preHandler: [fastify.authenticate, fastify.requireTenantContext],

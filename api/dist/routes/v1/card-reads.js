@@ -4,7 +4,7 @@ import { cardReadLatency, cardReadTotal, failedReadsTotal } from '../../metrics.
 import { checkRateLimit } from '../../cache/redis.js';
 const CardReadBodySchema = Type.Object({
     deviceId: Type.String({ format: 'uuid' }),
-    rawDump: Type.String({ minLength: 1 }),
+    rawDump: Type.Optional(Type.String({ minLength: 1 })),
     cardSerial: Type.String({ maxLength: 64 }),
     cardType: Type.Union([
         Type.Literal('vehicle_registration'),
@@ -40,7 +40,7 @@ export const cardReadsRoutes = async (fastify) => {
         try {
             const result = await cardReadService.process({
                 tenantId, deviceId: req.body.deviceId,
-                rawDump: Buffer.from(req.body.rawDump, 'base64'),
+                rawDump: req.body.rawDump ? Buffer.from(req.body.rawDump, 'base64') : Buffer.alloc(0),
                 cardSerial: req.body.cardSerial, cardType: req.body.cardType,
                 idempotencyKey: req.headers['idempotency-key'],
                 parsedData: req.body.parsedData ?? {},

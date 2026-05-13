@@ -1,6 +1,7 @@
 import { Type } from '@sinclair/typebox';
 import { randomUUID, generateKeyPairSync } from 'crypto';
 import { pool } from '../../db/client.js';
+import { withTenantContext } from '../../db/tenant-context.js';
 const ActivateBody = Type.Object({
     token: Type.String({ minLength: 1 }),
     label: Type.Optional(Type.String({ maxLength: 128 })),
@@ -17,7 +18,9 @@ export const devicesRoutes = async (fastify) => {
         const jwt = req.jwtPayload;
         if (jwt.type !== 'device')
             return reply.code(403).send({ error: 'Forbidden' });
-        await pool.query(`UPDATE devices SET last_seen_at = now() WHERE id = $1`, [jwt.sub]);
+        await withTenantContext(pool, jwt.tenantId, async (client) => {
+            await client.query(`UPDATE devices SET last_seen_at = now() WHERE id = $1`, [jwt.sub]);
+        });
         return reply.send({ ok: true });
     });
     fastify.post('/activate', {

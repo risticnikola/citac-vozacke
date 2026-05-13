@@ -17,14 +17,15 @@ export const cardReadService = {
         const cached = await safeGet(cacheKey);
         if (cached)
             return JSON.parse(cached);
-        if (input.rawDump.length === 0)
-            throw Object.assign(new Error('Empty card dump'), { statusCode: 422 });
-        const s3Key = `${input.tenantId}/card-reads/${input.idempotencyKey}.bin`;
-        await s3.send(new PutObjectCommand({
-            Bucket: BUCKET, Key: s3Key, Body: input.rawDump,
-            ContentType: 'application/octet-stream',
-            Metadata: { tenantId: input.tenantId, cardType: input.cardType },
-        }));
+        let s3Key = null;
+        if (input.rawDump.length > 0) {
+            s3Key = `${input.tenantId}/card-reads/${input.idempotencyKey}.bin`;
+            await s3.send(new PutObjectCommand({
+                Bucket: BUCKET, Key: s3Key, Body: input.rawDump,
+                ContentType: 'application/octet-stream',
+                Metadata: { tenantId: input.tenantId, cardType: input.cardType },
+            }));
+        }
         const record = await withTenantContext(pool, input.tenantId, async (client) => {
             // Global idempotency check (card_read_idempotency has no RLS — unpartitioned)
             const { rows: idemRows } = await client.query(`SELECT card_read_id FROM card_read_idempotency WHERE idempotency_key=$1`, [input.idempotencyKey]);

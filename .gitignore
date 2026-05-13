@@ -1,6 +1,7 @@
 build/
 dist
 electron-dist
+dist-electron
 *.def
 *.user
 .vs/
@@ -16,3 +17,5 @@ citacVozacke/Release/
 *.tlog
 *.recipe
 *.log
+CLAUDE.md
+docs/

@@ -1,5 +1,5 @@
 // bridge/src/main.ts
-import { app, Tray, Menu, nativeImage, BrowserWindow, ipcMain } from 'electron';
+import { app, Tray, Menu, nativeImage, BrowserWindow, ipcMain, Notification } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import fs from 'fs';
@@ -64,7 +64,7 @@ function buildMenu(
     {
       label: 'Open reader',
       enabled: !readerOpen,
-      click: () => tryOpenReader(cloudClient, wss),
+      click: () => tryOpenReader(cloudClient, wss, true),
     },
     {
       label: 'Close reader',
@@ -84,7 +84,7 @@ function updateTray(readerOpen: boolean, cloudClient: CloudClient, wss: WebSocke
   tray.setContextMenu(buildMenu(readerOpen, cloudClient, wss));
 }
 
-async function tryOpenReader(cloudClient: CloudClient, wss: WebSocketServer): Promise<void> {
+async function tryOpenReader(cloudClient: CloudClient, wss: WebSocketServer, notifyOnError = false): Promise<void> {
   try {
     const reader = await openReader();
     reader.on('card', async (cardData) => {
@@ -106,6 +106,12 @@ async function tryOpenReader(cloudClient: CloudClient, wss: WebSocketServer): Pr
     updateTray(true, cloudClient, wss);
   } catch (err: any) {
     console.error({ err }, 'Failed to open card reader');
+    if (notifyOnError && Notification.isSupported()) {
+      new Notification({
+        title: 'Vehicle Card Bridge',
+        body: `Could not open card reader: ${(err as Error).message}`,
+      }).show();
+    }
   }
 }
 
@@ -247,11 +253,15 @@ function showWizard(): void {
 // Entry point
 // ---------------------------------------------------------------------------
 
-app.whenReady().then(async () => {
-  const deviceCfg = loadDeviceConfig();
-  if (!deviceCfg) {
-    showWizard();
-    return;
-  }
-  await startBridge(deviceCfg);
-});
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.whenReady().then(async () => {
+    const deviceCfg = loadDeviceConfig();
+    if (!deviceCfg) {
+      showWizard();
+      return;
+    }
+    await startBridge(deviceCfg);
+  });
+}
