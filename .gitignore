@@ -1,7 +1,5 @@
 build/
-dist
-electron-dist
-dist-electron
+dist-electron/
 *.def
 *.user
 .vs/
