@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { initQueue, enqueue } from './bridge/queue.js';
 import { CloudClient } from './cloud/client.js';
+import { createServerWsClient } from './cloud/ws-client.js';
 import { createHttpServer } from './server/http.js';
 import { createWsServer, broadcast } from './server/websocket.js';
 import { openReader, closeReader, isReaderOpen } from './bridge/port-manager.js';
@@ -158,6 +159,14 @@ async function startBridge(deviceCfg: DeviceConfig): Promise<void> {
   setInterval(() => cloudClient.drainQueue().catch(console.error), 30_000);
   cloudClient.heartbeat().catch(console.error);
   setInterval(() => cloudClient.heartbeat().catch(console.error), 5 * 60_000);
+
+  createServerWsClient({
+    cloudApiUrl:   CONFIG.cloudApiUrl,
+    deviceId:      CONFIG.deviceId,
+    tenantId:      deviceCfg.tenantId,
+    privateKeyPem: CONFIG.privateKeyPem,
+  });
+
   autoUpdater.checkForUpdatesAndNotify().catch(console.error);
   setInterval(() => autoUpdater.checkForUpdatesAndNotify().catch(console.error), 4 * 60 * 60 * 1000);
 
