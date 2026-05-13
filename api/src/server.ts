@@ -1,12 +1,12 @@
-// api/src/server.ts
-// telemetry must be imported first — patches pg/http/redis before they load
 import './telemetry.js';
 import { buildApp } from './app.js';
+import { attachBridgeHub } from './hub/bridge-hub.js';
 
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 
 async function main() {
   const app = await buildApp();
+  attachBridgeHub(app.server);
   await app.listen({ port: PORT, host: '0.0.0.0' });
   for (const sig of ['SIGINT', 'SIGTERM']) {
     process.on(sig, async () => { await app.close(); process.exit(0); });
