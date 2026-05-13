@@ -26,6 +26,7 @@ it('rejects bridge WS connection without Authorization header', async () => {
       expect(code).toBe(4001);
       resolve();
     });
+    ws.on('error', () => resolve());
   });
 });
 
@@ -38,5 +39,6 @@ it('rejects bridge WS connection with invalid JWT', async () => {
       expect(code).toBe(4001);
       resolve();
     });
+    ws.on('error', () => resolve());
   });
 });
