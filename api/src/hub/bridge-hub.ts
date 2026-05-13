@@ -1,7 +1,8 @@
 // api/src/hub/bridge-hub.ts
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage, Server } from 'http';
-import { verify, decode } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
+const { verify, decode } = jwt;
 import { pool } from '../db/client.js';
 import { EventEmitter } from 'events';
 

@@ -1,7 +1,8 @@
 // api/src/hub/web-hub.ts
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage, Server } from 'http';
-import { verify } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
+const { verify } = jwt;
 import { bridgeEvents, type CardDataEvent } from './bridge-hub.js';
 
 const webSockets = new Map<string, Set<WebSocket>>();
