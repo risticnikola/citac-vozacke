@@ -54,5 +54,16 @@ export async function buildApp(opts: { logger?: boolean | object } = {}): Promis
   const { serviceRemindersRoutes } = await import('./routes/v1/service-reminders.js');
   await app.register(serviceRemindersRoutes, { prefix: '/v1/service-reminders' });
 
+  app.post('/v1/scan', {
+    preHandler: [app.authenticate, app.requireTenantContext],
+  }, async (req, reply) => {
+    const { getBridgeSocketsForTenant } = await import('./hub/bridge-hub.js');
+    const sockets = getBridgeSocketsForTenant(req.tenantId);
+    const active = [...sockets].filter((ws) => ws.readyState === 1);
+    if (!active.length) return reply.code(503).send({ error: 'No bridge connected for this tenant' });
+    active[0].send(JSON.stringify({ type: 'scan' }));
+    return reply.code(202).send({ ok: true });
+  });
+
   return app;
 }
