@@ -38,7 +38,7 @@ export async function runConsumer(opts: SqsConsumerOptions): Promise<never> {
         QueueUrl: queueUrl,
         MaxNumberOfMessages: maxMessages,
         WaitTimeSeconds: waitTimeSeconds,
-        AttributeNames: ['ApproximateReceiveCount'],
+        MessageSystemAttributeNames: ['ApproximateReceiveCount'],
       }));
       messages = resp.Messages ?? [];
       consecutiveErrors = 0;
@@ -60,7 +60,7 @@ export async function runConsumer(opts: SqsConsumerOptions): Promise<never> {
         }));
       } catch (err) {
         log.error({ err, msgId: msg.MessageId }, 'message handler failed; extending visibility');
-        const receiveCount = parseInt(msg.Attributes?.ApproximateReceiveCount ?? '1', 10);
+        const receiveCount = parseInt((msg.Attributes as Record<string, string>)?.ApproximateReceiveCount ?? '1', 10);
         const extendSecs = Math.min(60 * receiveCount, 600);
         await sqs.send(new ChangeMessageVisibilityCommand({
           QueueUrl: queueUrl,
