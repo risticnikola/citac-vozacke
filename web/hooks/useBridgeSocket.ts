@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { BridgeCardEvent, BridgeWsMessage } from '@/types';
 
-const WS_URL = process.env.NEXT_PUBLIC_BRIDGE_WS_URL ?? 'ws://localhost:4001';
+const WS_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3050')
+  .replace(/^http/, 'ws');
 const MAX_BACKOFF_MS = 30_000;
 
 export interface BridgeSocketState {
@@ -22,7 +23,9 @@ export function useBridgeSocket(): BridgeSocketState {
   const connect = useCallback(() => {
     if (destroyed.current) return;
     try {
-      const ws = new WebSocket(WS_URL);
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('token') : null;
+      if (!token) return;
+      const ws = new WebSocket(`${WS_BASE}/v1/events/ws?token=${encodeURIComponent(token)}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
