@@ -80,8 +80,8 @@ export function attachBridgeHub(server: Server): void {
           if (msg.type === 'card_data') {
             bridgeEvents.emit('card_data', {
               tenantId,
-              cardType:   msg.cardType,
-              cardSerial: msg.cardSerial,
+              cardType:   String(msg.cardType   ?? ''),
+              cardSerial: String(msg.cardSerial ?? ''),
               parsedData: msg.parsedData ?? null,
             } satisfies CardDataEvent);
           }
