@@ -54,7 +54,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICES: s3,sqs
-      DEFAULT_REGION: eu-west-1
+      DEFAULT_REGION: eu-north-1
       LOCALSTACK_HOST: localstack
     ports: ["4566:4566"]
     volumes:
@@ -81,7 +81,7 @@ services:
       DATABASE_URL: postgresql://app_role:app_role_password@postgres:5432/vehicleapp
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-secret-change-in-prod
-      AWS_REGION: eu-west-1
+      AWS_REGION: eu-north-1
       AWS_ENDPOINT_URL: http://localstack:4566
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
