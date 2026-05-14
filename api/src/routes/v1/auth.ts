@@ -1,7 +1,7 @@
 // api/src/routes/v1/auth.ts
 import { FastifyPluginAsync } from 'fastify';
 import { Type, Static } from '@sinclair/typebox';
-import { pool } from '../../db/client.js';
+import { bypassPool } from '../../db/client.js';
 import bcrypt from 'bcryptjs';
 
 const LoginBody = Type.Object({
@@ -16,7 +16,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (req, reply) => {
     const { email, password } = req.body;
 
-    const { rows } = await pool.query(
+    const { rows } = await bypassPool.query(
       `SELECT id, tenant_id, role, password_hash, auth_provider, deleted_at
        FROM users WHERE email = $1 LIMIT 1`,
       [email],
