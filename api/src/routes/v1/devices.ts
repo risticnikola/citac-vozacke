@@ -77,32 +77,22 @@ export const devicesRoutes: FastifyPluginAsync = async (fastify) => {
     if (parseInt(countRows[0].cnt, 10) >= maxDevices)
       return reply.code(422).send({ error: 'Device limit reached for this tenant' });
 
-    // Insert device and stamp token as used in one transaction
-    const client = await pool.connect();
-    let deviceId: string;
-    try {
-      await client.query('BEGIN');
-
+    // Insert device and stamp token as used in one transaction, with tenant context for RLS
+    const deviceId = await withTenantContext(pool, tenantId, async (client) => {
       const { rows: devRows } = await client.query(
         `INSERT INTO devices (tenant_id, serial, name, platform, bridge_version, public_key_pem, key_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id`,
         [tenantId, deviceSerial, deviceLabel, platform ?? null, bridgeVersion ?? null, publicKey, keyId],
       );
-      deviceId = devRows[0].id;
 
       await client.query(
         `UPDATE device_activation_tokens SET used_at = now() WHERE id = $1`,
         [tokenId],
       );
 
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+      return devRows[0].id as string;
+    });
 
     // Return everything the bridge needs to build its config.json
     return reply.code(201).send({
