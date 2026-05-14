@@ -44,13 +44,16 @@ export const adminDevicesRoutes: FastifyPluginAsync = async (fastify) => {
     if (jwt.type !== 'user' || !['garage_admin', 'saas_admin'].includes(jwt.role))
       return reply.code(403).send({ error: 'Forbidden' });
 
-    const { rows } = await pool.query(
-      `SELECT id, name, platform, bridge_version, last_seen_at, created_at, revoked_at
-       FROM devices
-       WHERE tenant_id = $1
-       ORDER BY created_at DESC`,
-      [req.tenantId],
-    );
+    const rows = await withTenantContext(pool, req.tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT id, name, platform, bridge_version, last_seen_at, created_at, revoked_at
+         FROM devices
+         WHERE tenant_id = $1
+         ORDER BY created_at DESC`,
+        [req.tenantId],
+      );
+      return rows;
+    });
     return reply.send(rows);
   });
 
@@ -61,11 +64,14 @@ export const adminDevicesRoutes: FastifyPluginAsync = async (fastify) => {
     if (jwt.type !== 'user' || !['garage_admin', 'saas_admin'].includes(jwt.role))
       return reply.code(403).send({ error: 'Forbidden' });
 
-    const { rowCount } = await pool.query(
-      `UPDATE devices SET revoked_at = now()
-       WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL`,
-      [req.params.id, req.tenantId],
-    );
+    const rowCount = await withTenantContext(pool, req.tenantId, async (client) => {
+      const { rowCount } = await client.query(
+        `UPDATE devices SET revoked_at = now()
+         WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL`,
+        [req.params.id, req.tenantId],
+      );
+      return rowCount;
+    });
     if (!rowCount) return reply.code(404).send({ error: 'Device not found' });
     return reply.code(204).send();
   });
@@ -82,11 +88,13 @@ export const adminDevicesRoutes: FastifyPluginAsync = async (fastify) => {
     const hours     = req.body.expiresInHours ?? 48;
     const expiresAt = new Date(Date.now() + hours * 3_600_000);
 
-    await pool.query(
-      `INSERT INTO device_activation_tokens (tenant_id, token, label, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [req.tenantId, token, req.body.label ?? null, expiresAt],
-    );
+    await withTenantContext(pool, req.tenantId, async (client) => {
+      await client.query(
+        `INSERT INTO device_activation_tokens (tenant_id, token, label, expires_at)
+         VALUES ($1, $2, $3, $4)`,
+        [req.tenantId, token, req.body.label ?? null, expiresAt],
+      );
+    });
 
     return reply.code(201).send({ token, expiresAt, label: req.body.label ?? null });
   });
