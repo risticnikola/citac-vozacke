@@ -16,9 +16,9 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO users (tenant_id, email, role, password_hash, auth_provider)
 VALUES (
   'c7cfe9eb-b42a-4847-bc8a-1621a19e2ef7',
-  'admin@demo.com',
+  'admin@admin.com',
   'garage_admin',
-  crypt('Admin1234!', gen_salt('bf', 10)),
+  crypt('admin123', gen_salt('bf', 10)),
   'local'
 )
 ON CONFLICT (tenant_id, email) DO NOTHING;
