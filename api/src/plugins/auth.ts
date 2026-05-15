@@ -3,7 +3,7 @@ import fp from 'fastify-plugin';
 import jwtPlugin from '@fastify/jwt';
 import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import * as crypto from 'crypto';
-import { pool } from '../db/client.js';
+import { bypassPool } from '../db/client.js';
 import { safeGet, safeSet } from '../cache/redis.js';
 import type { JwtPayload } from '../types/index.js';
 
@@ -42,7 +42,7 @@ async function verifyDeviceToken(req: FastifyRequest, reply: FastifyReply, token
   let pem = await safeGet(cacheKey);
 
   if (!pem) {
-    const { rows } = await pool.query(
+    const { rows } = await bypassPool.query(
       kid
         ? `SELECT public_key_pem, key_id, revoked_at FROM devices WHERE id=$1 AND key_id=$2`
         : `SELECT public_key_pem, key_id, revoked_at FROM devices WHERE id=$1`,
