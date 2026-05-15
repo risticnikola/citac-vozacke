@@ -3,7 +3,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage, Server } from 'http';
 import jwt from 'jsonwebtoken';
 const { verify, decode } = jwt;
-import { pool } from '../db/client.js';
+import { bypassPool } from '../db/client.js';
 import { EventEmitter } from 'events';
 
 export interface CardDataEvent {
@@ -55,7 +55,7 @@ export function attachBridgeHub(server: Server): void {
         return;
       }
 
-      const { rows } = await pool.query(
+      const { rows } = await bypassPool.query(
         `SELECT public_key_pem FROM devices WHERE id = $1 AND revoked_at IS NULL`,
         [deviceId],
       );
