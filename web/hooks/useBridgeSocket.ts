@@ -29,6 +29,7 @@ export function useBridgeSocket(): BridgeSocketState {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        console.log('[bridge-ws] connected to', `${WS_BASE}/v1/events/ws`);
         setConnected(true);
         backoff.current = 2_000;
       };
@@ -36,7 +37,9 @@ export function useBridgeSocket(): BridgeSocketState {
       ws.onmessage = (ev) => {
         try {
           const msg: BridgeWsMessage = JSON.parse(ev.data);
+          console.log('[bridge-ws] message received:', msg);
           if (msg.type === 'card.read') {
+            console.log('[bridge-ws] card data:', msg.payload);
             setLastCard(msg.payload as BridgeCardEvent);
           }
         } catch { /* ignore malformed */ }
