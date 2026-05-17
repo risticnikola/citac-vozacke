@@ -125,6 +125,7 @@ async function tryOpenReader(cloudClient: CloudClient, wss: WebSocketServer, not
       });
       cloudClient.drainQueue().catch(console.error);
     });
+    reader.on('error', (err: Error) => console.error('Card reader error:', err.message));
     reader.on('disconnect', () => updateTray(false, cloudClient, wss));
     updateTray(true, cloudClient, wss);
   } catch (err: any) {

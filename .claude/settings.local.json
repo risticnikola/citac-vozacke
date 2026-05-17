@@ -37,7 +37,8 @@
       "Bash(xargs grep -l \"service_reminder\")",
       "PowerShell(New-Item *)",
       "Bash(npm test *)",
-      "Bash(powershell *)"
+      "Bash(powershell *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('build',{}\\), indent=2\\)\\)\")"
     ]
   }
 }

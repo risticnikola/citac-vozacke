@@ -11,9 +11,7 @@ export interface WsClientConfig {
   privateKeyPem: string;
 }
 
-// Minimal pino-shaped logger backed by console
 const log = {
-  name: 'server-ws-client',
   info:  (msg: string) => console.info(`[${new Date().toISOString()}] INFO  server-ws-client: ${msg}`),
   warn:  (msg: string) => console.warn(`[${new Date().toISOString()}] WARN  server-ws-client: ${msg}`),
   error: (msg: string) => console.error(`[${new Date().toISOString()}] ERROR server-ws-client: ${msg}`),
@@ -31,6 +29,12 @@ export function createServerWsClient(cfg: WsClientConfig): void {
       .replace(/^https:\/\//, 'wss://')
       .replace(/^http:\/\//, 'ws://');
     return `${wsUrl}/v1/devices/ws`;
+  }
+
+  function send(payload: object): void {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(payload));
+    }
   }
 
   function connect(): void {
@@ -59,7 +63,10 @@ export function createServerWsClient(cfg: WsClientConfig): void {
       if (msg.type === 'scan') {
         log.info('Scan command received — reading card');
         try {
-          const cardData = await readFromActive();
+          const timeout = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Scan timeout — place card on reader')), 30_000),
+          );
+          const cardData = await Promise.race([readFromActive(), timeout]);
           log.info(`Card read ok: type=${cardData.cardType} serial=${cardData.cardSerial}`);
           send({
             type:       'card_data',
@@ -68,7 +75,7 @@ export function createServerWsClient(cfg: WsClientConfig): void {
             parsedData: cardData.parsedData,
           });
         } catch (err: any) {
-          log.error(`readFromActive failed: ${(err as Error).message}`);
+          log.error(`Scan failed: ${(err as Error).message}`);
           send({ type: 'scan_error', error: (err as Error).message });
         }
       }
@@ -85,12 +92,6 @@ export function createServerWsClient(cfg: WsClientConfig): void {
       log.error(`WebSocket error: ${err.message}`);
       ws?.close();
     });
-  }
-
-  function send(payload: object): void {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(payload));
-    }
   }
 
   connect();

@@ -48,6 +48,7 @@ export class CppWrapper extends EventEmitter {
       }
     });
 
+    this.proc.stdin!.on('error', () => { /* ignore write-after-close */ });
     this.proc.stdout!.setEncoding('utf8');
     this.proc.stdout!.on('data', (chunk: string) => {
       this.buf += chunk;
@@ -57,9 +58,12 @@ export class CppWrapper extends EventEmitter {
         const t = line.trim();
         if (!t) continue;
         try {
-          const msg = JSON.parse(t) as { type: string } & Record<string, unknown>;
+          const msg = JSON.parse(t) as { type: string; error?: string } & Record<string, unknown>;
           if (msg.type === 'card_data' && this.pending) {
             this.pending.resolve(msg as unknown as CardResponse);
+            this.pending = null;
+          } else if (msg.type === 'error' && this.pending) {
+            this.pending.reject(new Error(msg.error ?? 'citacVozacke error'));
             this.pending = null;
           }
         } catch { /* ignore non-JSON stderr noise */ }
@@ -74,7 +78,7 @@ export class CppWrapper extends EventEmitter {
       if (!this.proc)    return reject(new Error('CppWrapper not started'));
       if (this.pending)  return reject(new Error('Read already in progress'));
       this.pending = { resolve, reject };
-      this.proc.stdin!.write(JSON.stringify({ type: 'read_card' }) + '\n');
+      this.proc.stdin!.write(JSON.stringify({ cmd: 'read_card' }) + '\n');
     });
   }
 
