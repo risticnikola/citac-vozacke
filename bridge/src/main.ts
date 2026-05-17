@@ -12,6 +12,24 @@ import { openReader, closeReader, isReaderOpen } from './bridge/port-manager.js'
 import type { BridgeConfig } from './types.js';
 import type { WebSocketServer } from 'ws';
 
+// File logger — writes all console output to Desktop/bridge-log.txt
+import os from 'os';
+const LOG_FILE = path.join(os.homedir(), 'Desktop', 'bridge-log.txt');
+function writeLog(level: string, ...args: unknown[]): void {
+  const line = `[${new Date().toISOString()}] ${level} ${args.map(String).join(' ')}\n`;
+  try { fs.appendFileSync(LOG_FILE, line, 'utf8'); } catch { /* ignore */ }
+}
+const _origLog   = console.log.bind(console);
+const _origInfo  = console.info.bind(console);
+const _origWarn  = console.warn.bind(console);
+const _origError = console.error.bind(console);
+console.log   = (...a) => { _origLog(...a);   writeLog('LOG  ', ...a); };
+console.info  = (...a) => { _origInfo(...a);  writeLog('INFO ', ...a); };
+console.warn  = (...a) => { _origWarn(...a);  writeLog('WARN ', ...a); };
+console.error = (...a) => { _origError(...a); writeLog('ERROR', ...a); };
+// Clear log on startup so each run starts fresh
+try { fs.writeFileSync(LOG_FILE, `=== Bridge started ${new Date().toISOString()} ===\n`, 'utf8'); } catch { /* ignore */ }
+
 const DEFAULT_API_URL = process.env.DEFAULT_API_URL ?? 'http://localhost:3050';
 const DB_PATH = path.join(app.getPath('userData'), 'offline-queue.db');
 const CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
@@ -32,11 +50,15 @@ function loadDeviceConfig(): DeviceConfig | null {
     path.join(process.resourcesPath ?? '.', 'config.json'),
     path.join(__dirname, '..', 'config.json'),
   ];
+  console.log('[loadDeviceConfig] candidates:', candidates);
   for (const candidate of candidates) {
     try {
       const raw = fs.readFileSync(candidate, 'utf8');
       const cfg = JSON.parse(raw) as Partial<DeviceConfig>;
-      if (cfg.deviceId && cfg.devicePrivateKey && cfg.tenantId) return cfg as DeviceConfig;
+      if (cfg.deviceId && cfg.devicePrivateKey && cfg.tenantId) {
+        console.log('[loadDeviceConfig] loaded from:', candidate, '| cloudApiUrl:', (cfg as any).cloudApiUrl);
+        return cfg as DeviceConfig;
+      }
     } catch { /* try next */ }
   }
   return null;
@@ -121,6 +143,7 @@ async function tryOpenReader(cloudClient: CloudClient, wss: WebSocketServer, not
 // ---------------------------------------------------------------------------
 
 async function startBridge(deviceCfg: DeviceConfig): Promise<void> {
+  console.log('[startBridge] cloudApiUrl from config:', deviceCfg.cloudApiUrl, '| resolved:', deviceCfg.cloudApiUrl ?? DEFAULT_API_URL);
   CONFIG = {
     cloudApiUrl:    deviceCfg.cloudApiUrl ?? DEFAULT_API_URL,
     deviceId:       deviceCfg.deviceId,

@@ -25,7 +25,7 @@ function cardToVehiclePrefill(d: CardParsedData) {
 
 export function CardToast() {
   const router = useRouter();
-  const { lastCard, clearCard } = useBridge();
+  const { lastCard, clearCard, scanError, clearScanError } = useBridge();
   const [visible, setVisible]   = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -59,6 +59,27 @@ export function CardToast() {
     setCreateOpen(false);
     dismiss();
     router.push(`/vehicles/${v.id}`);
+  }
+
+  if (!lastCard && !scanError) return null;
+
+  if (scanError) {
+    return (
+      <div className="fixed bottom-5 right-5 z-40 w-80 overflow-hidden rounded-2xl border border-red-800 bg-neutral-900 shadow-2xl">
+        <div className="flex items-center gap-2.5 px-4 py-3 bg-red-500/10 border-b border-red-900">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-500/20">
+            <CreditCard className="h-4 w-4 text-red-400" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-300">Scan failed</p>
+            <p className="text-xs text-red-400/80">{scanError}</p>
+          </div>
+          <button onClick={clearScanError} className="text-neutral-500 transition-colors hover:text-neutral-300">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!lastCard) return null;

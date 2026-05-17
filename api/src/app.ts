@@ -61,8 +61,10 @@ export async function buildApp(opts: { logger?: boolean | object } = {}): Promis
     const { WebSocket } = await import('ws');
     const sockets = getBridgeSocketsForTenant(req.tenantId);
     const active = [...sockets].filter((ws) => ws.readyState === WebSocket.OPEN);
+    console.log(`[scan] tenantId=${req.tenantId} total=${sockets.size} open=${active.length}`);
     if (!active.length) return reply.code(503).send({ error: 'No bridge connected for this tenant' });
     active[0].send(JSON.stringify({ type: 'scan' }));
+    console.log(`[scan] sent scan command to bridge`);
     return reply.code(202).send({ ok: true });
   });
 

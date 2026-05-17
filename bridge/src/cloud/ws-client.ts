@@ -47,6 +47,7 @@ export function createServerWsClient(cfg: WsClientConfig): void {
     });
 
     ws.on('message', async (data: WebSocket.RawData) => {
+      log.info(`Raw WS message from server: ${data.toString()}`);
       let msg: { type?: string };
       try {
         msg = JSON.parse(data.toString());
@@ -56,8 +57,10 @@ export function createServerWsClient(cfg: WsClientConfig): void {
       }
 
       if (msg.type === 'scan') {
+        log.info('Scan command received — reading card');
         try {
           const cardData = await readFromActive();
+          log.info(`Card read ok: type=${cardData.cardType} serial=${cardData.cardSerial}`);
           send({
             type:       'card_data',
             cardType:   cardData.cardType,
@@ -65,6 +68,7 @@ export function createServerWsClient(cfg: WsClientConfig): void {
             parsedData: cardData.parsedData,
           });
         } catch (err: any) {
+          log.error(`readFromActive failed: ${(err as Error).message}`);
           send({ type: 'scan_error', error: (err as Error).message });
         }
       }

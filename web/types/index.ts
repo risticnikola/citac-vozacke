@@ -115,8 +115,9 @@ export interface BridgeCardEvent {
 }
 
 export interface BridgeWsMessage {
-  type: 'card.read' | 'device.status' | 'error';
+  type: 'card.read' | 'device.status' | 'error' | 'scan.error';
   payload: unknown;
+  error?: string;
 }
 
 export interface Paginated<T> {

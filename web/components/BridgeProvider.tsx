@@ -6,7 +6,9 @@ import { useBridgeSocket, BridgeSocketState } from '@/hooks/useBridgeSocket';
 const BridgeContext = createContext<BridgeSocketState>({
   connected: false,
   lastCard: null,
+  scanError: null,
   clearCard: () => {},
+  clearScanError: () => {},
 });
 
 export function BridgeProvider({ children }: { children: React.ReactNode }) {

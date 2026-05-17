@@ -10,12 +10,15 @@ const MAX_BACKOFF_MS = 30_000;
 export interface BridgeSocketState {
   connected: boolean;
   lastCard: BridgeCardEvent | null;
+  scanError: string | null;
   clearCard: () => void;
+  clearScanError: () => void;
 }
 
 export function useBridgeSocket(): BridgeSocketState {
-  const [connected, setConnected] = useState(false);
-  const [lastCard, setLastCard]   = useState<BridgeCardEvent | null>(null);
+  const [connected, setConnected]   = useState(false);
+  const [lastCard, setLastCard]     = useState<BridgeCardEvent | null>(null);
+  const [scanError, setScanError]   = useState<string | null>(null);
   const wsRef    = useRef<WebSocket | null>(null);
   const backoff  = useRef(2_000);
   const destroyed = useRef(false);
@@ -41,6 +44,9 @@ export function useBridgeSocket(): BridgeSocketState {
           if (msg.type === 'card.read') {
             console.log('[bridge-ws] card data:', msg.payload);
             setLastCard(msg.payload as BridgeCardEvent);
+          } else if (msg.type === 'scan.error') {
+            console.error('[bridge-ws] scan error:', msg.error);
+            setScanError(msg.error ?? 'Scan failed');
           }
         } catch { /* ignore malformed */ }
       };
@@ -71,7 +77,8 @@ export function useBridgeSocket(): BridgeSocketState {
     };
   }, [connect]);
 
-  const clearCard = useCallback(() => setLastCard(null), []);
+  const clearCard      = useCallback(() => setLastCard(null), []);
+  const clearScanError = useCallback(() => setScanError(null), []);
 
-  return { connected, lastCard, clearCard };
+  return { connected, lastCard, scanError, clearCard, clearScanError };
 }

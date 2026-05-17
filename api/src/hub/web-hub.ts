@@ -3,7 +3,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage, Server } from 'http';
 import jwt from 'jsonwebtoken';
 const { verify } = jwt;
-import { bridgeEvents, type CardDataEvent } from './bridge-hub.js';
+import { bridgeEvents, type CardDataEvent, type ScanErrorEvent } from './bridge-hub.js';
 
 const webSockets = new Map<string, Set<WebSocket>>();
 
@@ -25,6 +25,10 @@ bridgeEvents.on('card_data', (event: CardDataEvent) => {
       parsedData: event.parsedData,
     },
   });
+});
+
+bridgeEvents.on('scan_error', (event: ScanErrorEvent) => {
+  broadcastToTenant(event.tenantId, { type: 'scan.error', error: event.error });
 });
 
 export function attachWebHub(server: Server): void {

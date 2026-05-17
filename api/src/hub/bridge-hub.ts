@@ -13,6 +13,11 @@ export interface CardDataEvent {
   parsedData: unknown;
 }
 
+export interface ScanErrorEvent {
+  tenantId: string;
+  error: string;
+}
+
 export const bridgeEvents = new EventEmitter();
 
 const bridgeSockets = new Map<string, Set<WebSocket>>();
@@ -74,10 +79,13 @@ export function attachBridgeHub(server: Server): void {
       const tenantSet = bridgeSockets.get(tenantId) ?? new Set<WebSocket>();
       bridgeSockets.set(tenantId, tenantSet);
       tenantSet.add(ws);
+      console.log(`[bridge-hub] device connected: deviceId=${deviceId} tenantId=${tenantId} totalForTenant=${tenantSet.size}`);
+      ws.send(JSON.stringify({ type: 'ack' }));
 
       ws.on('message', (data) => {
         try {
           const msg = JSON.parse(data.toString()) as { type: string } & Record<string, unknown>;
+          console.log(`[bridge-hub] message from deviceId=${deviceId}: type=${msg.type}`);
           if (msg.type === 'card_data') {
             bridgeEvents.emit('card_data', {
               tenantId,
@@ -85,12 +93,15 @@ export function attachBridgeHub(server: Server): void {
               cardSerial: String(msg.cardSerial ?? ''),
               parsedData: msg.parsedData ?? null,
             } satisfies CardDataEvent);
+          } else if (msg.type === 'scan_error') {
+            bridgeEvents.emit('scan_error', { tenantId, error: String(msg.error ?? 'Unknown error') });
           }
         } catch { /* ignore malformed */ }
       });
 
       ws.on('close', () => {
         bridgeSockets.get(tenantId)?.delete(ws);
+        console.log(`[bridge-hub] device disconnected: deviceId=${deviceId} tenantId=${tenantId}`);
       });
 
       ws.on('error', () => ws.close());
