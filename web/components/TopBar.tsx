@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { Menu } from 'lucide-react';
 import { useBridge } from './BridgeProvider';
 import { cn } from '@/lib/cn';
 
@@ -35,12 +36,20 @@ function BridgeStatus() {
   );
 }
 
-export function TopBar() {
+export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle: () => void }) {
   const pathname = usePathname();
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-neutral-800 px-6">
-      <h1 className="text-sm font-medium text-neutral-200">{getTitle(pathname)}</h1>
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-neutral-800 px-4 md:px-6">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onMobileMenuToggle}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-200 md:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <h1 className="truncate text-sm font-medium text-neutral-200">{getTitle(pathname)}</h1>
+      </div>
       <BridgeStatus />
     </header>
   );
