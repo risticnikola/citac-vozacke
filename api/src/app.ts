@@ -54,6 +54,9 @@ export async function buildApp(opts: { logger?: boolean | object } = {}): Promis
   const { serviceRemindersRoutes } = await import('./routes/v1/service-reminders.js');
   await app.register(serviceRemindersRoutes, { prefix: '/v1/service-reminders' });
 
+  const { downloadsRoutes } = await import('./routes/v1/downloads.js');
+  await app.register(downloadsRoutes, { prefix: '/v1/downloads' });
+
   app.post('/v1/scan', {
     preHandler: [app.authenticate, app.requireTenantContext],
   }, async (req, reply) => {
