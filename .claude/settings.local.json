@@ -41,7 +41,8 @@
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('build',{}\\), indent=2\\)\\)\")",
       "Bash(xargs ls -1)",
       "Bash(xargs -I{} cat {})",
-      "Bash(xargs grep -l \"scan\\\\|bridge\\\\|card\")"
+      "Bash(xargs grep -l \"scan\\\\|bridge\\\\|card\")",
+      "Skill(superpowers:brainstorming)"
     ]
   }
 }
