@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-AWS="aws --endpoint-url=http://localhost:4566 --region eu-west-1"
+AWS="aws --endpoint-url=http://localhost:4566 --region eu-north-1"
 
 echo "Creating S3 buckets..."
 $AWS s3 mb s3://vehicle-dumps   || true

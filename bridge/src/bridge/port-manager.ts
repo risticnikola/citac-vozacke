@@ -3,6 +3,7 @@
 // "port" is a PC/SC reader name (e.g. "ACS ACR122U 00") — the C++ binary
 // enumerates available readers and accepts an optional name override.
 import { CardReader } from './card-reader.js';
+import { CppWrapper } from './cpp-wrapper.js';
 import type { CardData } from '../types.js';
 
 let activeReader: CardReader | null = null;
@@ -47,4 +48,8 @@ export function isReaderOpen(): boolean {
 export async function readFromActive(): Promise<CardData> {
   if (!activeReader) throw new Error('No reader open');
   return activeReader.readCard();
+}
+
+export function listReaders(): Promise<string[]> {
+  return CppWrapper.listReaders();
 }

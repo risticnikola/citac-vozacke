@@ -3,12 +3,13 @@ import { app, Tray, Menu, nativeImage, BrowserWindow, ipcMain, Notification } fr
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import fs from 'fs';
+import dotenv from 'dotenv';
 import { initQueue, enqueue } from './bridge/queue.js';
 import { CloudClient } from './cloud/client.js';
 import { createServerWsClient } from './cloud/ws-client.js';
 import { createHttpServer } from './server/http.js';
 import { createWsServer, broadcast } from './server/websocket.js';
-import { openReader, closeReader, isReaderOpen } from './bridge/port-manager.js';
+import { openReader, closeReader, isReaderOpen, listReaders } from './bridge/port-manager.js';
 import type { BridgeConfig } from './types.js';
 import type { WebSocketServer } from 'ws';
 
@@ -30,6 +31,12 @@ console.error = (...a) => { _origError(...a); writeLog('ERROR', ...a); };
 // Clear log on startup so each run starts fresh
 try { fs.writeFileSync(LOG_FILE, `=== Bridge started ${new Date().toISOString()} ===\n`, 'utf8'); } catch { /* ignore */ }
 
+dotenv.config({
+  path: app.isPackaged
+    ? path.join(process.resourcesPath, '.env')
+    : path.join(__dirname, '..', '.env'),
+});
+
 const DEFAULT_API_URL = process.env.DEFAULT_API_URL ?? 'http://localhost:3050';
 const DB_PATH = path.join(app.getPath('userData'), 'offline-queue.db');
 const CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
@@ -42,6 +49,7 @@ interface DeviceConfig {
   bridgeHttpPort?:   number;
   bridgeWsPort?:     number;
   allowedOrigins?:   string[];
+  preferredReader?:  string;
 }
 
 function loadDeviceConfig(): DeviceConfig | null {
@@ -70,6 +78,32 @@ function loadDeviceConfig(): DeviceConfig | null {
 
 let CONFIG!: BridgeConfig;
 let tray: Tray | null = null;
+let settingsWin: BrowserWindow | null = null;
+
+function showSettings(): void {
+  if (settingsWin) { settingsWin.focus(); return; }
+
+  settingsWin = new BrowserWindow({
+    width:           480,
+    height:          500,
+    resizable:       false,
+    center:          true,
+    title:           'Vehicle Card Bridge — Settings',
+    backgroundColor: '#0a0a0a',
+    webPreferences: {
+      preload:          path.join(__dirname, 'settings', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration:  false,
+    },
+  });
+
+  const htmlPath = app.isPackaged
+    ? path.join(app.getAppPath(), 'settings', 'index.html')
+    : path.join(__dirname, '..', 'settings', 'index.html');
+  settingsWin.loadFile(htmlPath);
+  settingsWin.setMenuBarVisibility(false);
+  settingsWin.on('closed', () => { settingsWin = null; });
+}
 
 function getIconPath(active: boolean): string {
   const name = active ? 'tray-icon-active.png' : 'tray-icon.png';
@@ -95,6 +129,8 @@ function buildMenu(
       click: async () => { await closeReader(); updateTray(false, cloudClient, wss); },
     },
     { type: 'separator' },
+    { label: 'Settings', click: () => showSettings() },
+    { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
 }
@@ -107,9 +143,10 @@ function updateTray(readerOpen: boolean, cloudClient: CloudClient, wss: WebSocke
   tray.setContextMenu(buildMenu(readerOpen, cloudClient, wss));
 }
 
-async function tryOpenReader(cloudClient: CloudClient, wss: WebSocketServer, notifyOnError = false): Promise<void> {
+async function tryOpenReader(cloudClient: CloudClient, wss: WebSocketServer, notifyOnError = false, readerName?: string): Promise<void> {
+  console.log('[tryOpenReader] opening reader:', readerName ?? '(index 0 / default)');
   try {
-    const reader = await openReader();
+    const reader = await openReader(readerName);
     reader.on('card', async (cardData) => {
       enqueue({
         deviceId:       CONFIG.deviceId,
@@ -180,6 +217,66 @@ async function startBridge(deviceCfg: DeviceConfig): Promise<void> {
   const wss = createWsServer(CONFIG.wsPort, CONFIG.allowedOrigins);
   createHttpServer(cloudClient, CONFIG.httpPort);
 
+  ipcMain.handle('settings:get-config', () => {
+    const cfg = loadDeviceConfig();
+    return {
+      deviceId:        cfg?.deviceId        ?? '',
+      preferredReader: cfg?.preferredReader ?? null,
+    };
+  });
+
+  ipcMain.handle('settings:reactivate', async (_event, args: { token: string; label: string | null }) => {
+    try {
+      const res = await fetch(`${DEFAULT_API_URL}/v1/devices/activate`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          token:    args.token,
+          label:    args.label,
+          platform: process.platform === 'win32' ? 'windows'
+                  : process.platform === 'darwin' ? 'macos'
+                  : 'linux',
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        return { ok: false, error: body.error ?? `Server returned ${res.status}` };
+      }
+
+      const data = await res.json() as { deviceId: string; devicePrivateKey: string; tenantId: string };
+      const existingCfg = loadDeviceConfig();
+      const newConfig: DeviceConfig = {
+        deviceId:         data.deviceId,
+        devicePrivateKey: data.devicePrivateKey,
+        tenantId:         data.tenantId,
+        preferredReader:  existingCfg?.preferredReader,
+      };
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2), 'utf8');
+
+      app.relaunch();
+      app.quit();
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: (err as Error).message ?? 'Network error' };
+    }
+  });
+
+  ipcMain.handle('settings:save-reader', async (_event, { name }: { name: string }) => {
+    try {
+      const cfg = loadDeviceConfig();
+      if (!cfg) return { ok: false, error: 'Config not found' };
+      cfg.preferredReader = name;
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf8');
+      await closeReader();
+      await tryOpenReader(cloudClient, wss, false, name);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
   setInterval(() => cloudClient.drainQueue().catch(console.error), 30_000);
   cloudClient.heartbeat().catch(console.error);
   setInterval(() => cloudClient.heartbeat().catch(console.error), 5 * 60_000);
@@ -202,7 +299,7 @@ async function startBridge(deviceCfg: DeviceConfig): Promise<void> {
 
   app.on('window-all-closed', () => { /* stay alive in tray */ });
 
-  await tryOpenReader(cloudClient, wss);
+  await tryOpenReader(cloudClient, wss, false, deviceCfg.preferredReader);
 }
 
 // ---------------------------------------------------------------------------
@@ -230,15 +327,12 @@ function showWizard(): void {
   win.loadFile(htmlPath);
   win.setMenuBarVisibility(false);
 
-  ipcMain.handle('wizard:get-default-api-url', () => DEFAULT_API_URL);
-
   ipcMain.handle('wizard:activate', async (_event, args: {
     token: string;
     label: string | null;
-    apiUrl: string;
   }) => {
     try {
-      const res = await fetch(`${args.apiUrl}/v1/devices/activate`, {
+      const res = await fetch(`${DEFAULT_API_URL}/v1/devices/activate`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
@@ -259,26 +353,42 @@ function showWizard(): void {
       const data = await res.json() as { deviceId: string; devicePrivateKey: string; tenantId: string };
 
       const config: DeviceConfig = {
-        deviceId:        data.deviceId,
+        deviceId:         data.deviceId,
         devicePrivateKey: data.devicePrivateKey,
-        tenantId:        data.tenantId,
-        cloudApiUrl:     args.apiUrl,
+        tenantId:         data.tenantId,
       };
       fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
 
-      // Start bridge then close wizard
-      win.close();
-      await startBridge(config);
-
+      // Don't start bridge yet — wait for reader confirmation
       return { ok: true };
     } catch (err: any) {
       return { ok: false, error: err.message ?? 'Network error — check the server URL.' };
     }
   });
 
-  // If the user closes the wizard without activating, quit
+  ipcMain.handle('wizard:confirm-reader', async (_event, { readerName }: { readerName: string | null }) => {
+    const config = loadDeviceConfig();
+    if (!config) { app.quit(); return; }
+    if (readerName) {
+      config.preferredReader = readerName;
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+    }
+    win.close();
+    await startBridge(config);
+  });
+
+  // If the user closes the wizard without completing, handle gracefully
   win.on('closed', () => {
-    if (!loadDeviceConfig()) app.quit();
+    ipcMain.removeHandler('wizard:get-default-api-url');
+    ipcMain.removeHandler('wizard:activate');
+    ipcMain.removeHandler('wizard:confirm-reader');
+    const cfg = loadDeviceConfig();
+    if (!cfg) {
+      app.quit();
+    } else if (!tray) {
+      // Activated but closed before reader step — start without preference
+      startBridge(cfg);
+    }
   });
 }
 
@@ -290,6 +400,8 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.whenReady().then(async () => {
+    ipcMain.handle('readers:list', () => listReaders());
+
     const deviceCfg = loadDeviceConfig();
     if (!deviceCfg) {
       showWizard();

@@ -153,6 +153,24 @@ static void readCard() {
 // Main loop
 // ---------------------------------------------------------------------------
 
+static void listReaders() {
+    std::ostringstream o;
+    o << "{\"type\":\"readers\",\"readers\":[";
+    char name[256] = {};
+    long sz = sizeof(name);
+    bool first = true;
+    for (long i = 0; ; i++) {
+        sz = sizeof(name);
+        if (GetReaderName(i, name, &sz) != 0) break;
+        while (sz > 0 && name[sz - 1] == '\0') sz--;
+        if (!first) o << ",";
+        o << jsonStr(name, sz);
+        first = false;
+    }
+    o << "]}";
+    send(o.str());
+}
+
 int main(int argc, char* argv[]) {
     // Disable output buffering so Node reads responses immediately
     setvbuf(stdout, nullptr, _IONBF, 0);
@@ -161,6 +179,13 @@ int main(int argc, char* argv[]) {
     if (ret != 0) {
         sendError("sdStartup failed: " + std::to_string(ret));
         return 1;
+    }
+
+    // --list mode: enumerate readers, print JSON, exit
+    if (argc > 1 && std::string(argv[1]) == "--list") {
+        listReaders();
+        sdCleanup();
+        return 0;
     }
 
     // Select reader — use argv[1] if provided, otherwise first available

@@ -42,7 +42,13 @@
       "Bash(xargs ls -1)",
       "Bash(xargs -I{} cat {})",
       "Bash(xargs grep -l \"scan\\\\|bridge\\\\|card\")",
-      "Skill(superpowers:brainstorming)"
+      "Skill(superpowers:brainstorming)",
+      "Bash(cl /EHsc /std:c++17 citacVozacke.cpp /link eVehicleRegistrationAPI.lib /out:citacVozacke.exe)",
+      "PowerShell(cmd /c '\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\\\\VC\\\\Auxiliary\\\\Build\\\\vcvarsall.bat\" x86 && cd \"C:\\\\Users\\\\nikol\\\\Desktop\\\\citac-vozacke\\\\bridge\\\\native\" && cl /EHsc /std:c++17 citacVozacke.cpp /link eVehicleRegistrationAPI.lib /out:citacVozacke.exe' 2>&1)",
+      "PowerShell(Copy-Item *)",
+      "Bash(docker exec citac-vozacke-api-1 *)",
+      "Bash(docker exec citac-vozacke-localstack-1 *)",
+      "Bash(docker exec *)"
     ]
   }
 }

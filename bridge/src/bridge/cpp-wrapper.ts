@@ -91,4 +91,27 @@ export class CppWrapper extends EventEmitter {
     });
     this.proc = null;
   }
+
+  static listReaders(): Promise<string[]> {
+    return new Promise((resolve) => {
+      const exePath = app.isPackaged
+        ? path.join(process.resourcesPath, 'native', 'citacVozacke.exe')
+        : path.join(__dirname, '..', '..', '..', 'citacVozacke', 'citacVozacke.exe');
+
+      const proc = spawn(exePath, ['--list'], { stdio: ['ignore', 'pipe', 'ignore'] });
+      let buf = '';
+      proc.stdout!.setEncoding('utf8');
+      proc.stdout!.on('data', (chunk: string) => { buf += chunk; });
+      proc.on('exit', () => {
+        try {
+          const msg = JSON.parse(buf.trim()) as { type: string; readers: string[] };
+          resolve(msg.type === 'readers' ? msg.readers : []);
+        } catch {
+          resolve([]);
+        }
+      });
+      proc.on('error', () => resolve([]));
+      setTimeout(() => { proc.kill(); resolve([]); }, 5000);
+    });
+  }
 }

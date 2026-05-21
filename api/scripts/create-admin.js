@@ -6,9 +6,9 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 
 const { Pool } = pg;
-
+console.log(process.env.DATABASE_URL_BYPASS);
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL_BYPASS,
 });
 
 const email = process.argv[2];

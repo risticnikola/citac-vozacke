@@ -154,6 +154,29 @@
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    #readerStep { display: none; }
+
+    select {
+      display: block;
+      width: 100%;
+      background: #1f1f1f;
+      border: 1px solid #303030;
+      border-radius: 8px;
+      color: #fafafa;
+      font-size: 14px;
+      padding: 10px 14px;
+      outline: none;
+      margin-bottom: 16px;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23737373' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+    }
+
+    select:focus { border-color: #f97316; }
   </style>
 </head>
 <body>
@@ -172,19 +195,27 @@
     <label for="label">Device name <span style="color:#525252">(optional)</span></label>
     <input id="label" type="text" placeholder="e.g. Front desk" maxlength="128" />
 
-    <details>
-      <summary>Advanced</summary>
-      <label for="apiUrl" style="margin-top:8px">Server URL</label>
-      <input id="apiUrl" type="text" placeholder="https://api.yourdomain.com" />
-    </details>
-
     <button id="btn" onclick="activate()">
       <span class="spinner" id="spinner"></span>
       <span id="btnText">Activate</span>
     </button>
 
     <div class="error" id="error"></div>
-    <div class="success" id="success"></div>
+  </div>
+
+  <div class="card" id="readerStep">
+    <div class="logo">🖴</div>
+    <h1>Select card reader</h1>
+    <p class="subtitle">Choose which smart card reader to use. You can change this later in Settings.</p>
+
+    <label for="readerSelect">Card reader</label>
+    <select id="readerSelect"></select>
+    <p id="readerHint" style="font-size:13px;color:#737373;margin-bottom:16px;"></p>
+
+    <button id="readerBtn" onclick="confirmReader()">
+      <span class="spinner" id="readerSpinner"></span>
+      <span id="readerBtnText">Start Bridge</span>
+    </button>
   </div>
 
   <script>
@@ -196,15 +227,9 @@
       e.target.value = groups.join('-');
     });
 
-    window.addEventListener('DOMContentLoaded', async () => {
-      const defaultUrl = await window.wizard.getDefaultApiUrl();
-      document.getElementById('apiUrl').value = defaultUrl;
-    });
-
     async function activate() {
-      const token  = document.getElementById('token').value.trim();
-      const label  = document.getElementById('label').value.trim() || null;
-      const apiUrl = document.getElementById('apiUrl').value.trim();
+      const token = document.getElementById('token').value.trim();
+      const label = document.getElementById('label').value.trim() || null;
 
       if (!token) return showError('Please enter an activation code.');
       if (token.replace(/-/g, '').length !== 16) return showError('Code must be 16 characters (XXXX-XXXX-XXXX-XXXX).');
@@ -212,17 +237,49 @@
       setLoading(true);
       hideMessages();
 
-      const result = await window.wizard.activate({ token, label, apiUrl });
+      const result = await window.wizard.activate({ token, label });
 
       setLoading(false);
       if (result.ok) {
-        document.getElementById('success').style.display = 'block';
-        document.getElementById('success').textContent =
-          'Device activated! The bridge is starting…';
-        document.getElementById('btn').disabled = true;
+        // Hide activation card, show reader picker
+        document.querySelector('.card').style.display = 'none';
+        document.getElementById('readerStep').style.display = 'block';
+        loadReaders();
       } else {
         showError(result.error ?? 'Activation failed. Check your code and try again.');
       }
+    }
+
+    async function loadReaders() {
+      const readers = await window.wizard.listReaders();
+      const sel = document.getElementById('readerSelect');
+      const hint = document.getElementById('readerHint');
+
+      if (readers.length === 0) {
+        hint.textContent = 'No readers detected. Bridge will use the first available reader on start.';
+        sel.style.display = 'none';
+      } else {
+        readers.forEach(name => {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          sel.appendChild(opt);
+        });
+        hint.textContent = readers.length === 1
+          ? '1 reader detected.'
+          : `${readers.length} readers detected.`;
+      }
+    }
+
+    async function confirmReader() {
+      const sel = document.getElementById('readerSelect');
+      const readerName = sel.style.display === 'none' || !sel.value ? null : sel.value;
+
+      document.getElementById('readerBtn').disabled = true;
+      document.getElementById('readerSpinner').style.display = 'block';
+      document.getElementById('readerBtnText').textContent = 'Starting…';
+
+      await window.wizard.confirmReader(readerName);
     }
 
     function setLoading(on) {
@@ -239,7 +296,6 @@
 
     function hideMessages() {
       document.getElementById('error').style.display = 'none';
-      document.getElementById('success').style.display = 'none';
     }
   </script>
 </body>

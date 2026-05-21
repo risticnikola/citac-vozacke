@@ -22,7 +22,12 @@ services:
       timeout: 5s
       retries: 10
     logging: *default-logging
-
+  
+  adminer:
+      image: adminer
+      restart: always
+      ports:
+        - "8080:8080"
   flyway:
     image: flyway/flyway:10-alpine
     depends_on:
@@ -63,7 +68,7 @@ services:
       - ./localstack-init.sh:/etc/localstack/init/ready.d/init.sh:ro
       - localstack_data:/var/lib/localstack
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:4566/_localstack/health | grep -q '\"s3\": \"available\"'"]
+      test: ["CMD-SHELL", "curl -s http://127.0.0.1:4566/_localstack/health | grep -qE '\"s3\": \"(available|running)\"'"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -96,7 +101,7 @@ services:
       PORT: 3000
     ports: ["3000:3000"]
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
