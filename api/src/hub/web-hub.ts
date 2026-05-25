@@ -5,6 +5,8 @@ import jwt from 'jsonwebtoken';
 const { verify } = jwt;
 import { bridgeEvents, type CardDataEvent, type ScanErrorEvent } from './bridge-hub.js';
 
+const PING_INTERVAL_MS = 25_000;
+
 const webSockets = new Map<string, Set<WebSocket>>();
 
 export function broadcastToTenant(tenantId: string, msg: object): void {
@@ -34,6 +36,18 @@ bridgeEvents.on('scan_error', (event: ScanErrorEvent) => {
 export function attachWebHub(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
 
+  const pingInterval = setInterval(() => {
+    for (const clients of webSockets.values()) {
+      for (const ws of clients) {
+        if ((ws as any).isAlive === false) { ws.terminate(); continue; }
+        (ws as any).isAlive = false;
+        ws.ping();
+      }
+    }
+  }, PING_INTERVAL_MS);
+
+  wss.on('close', () => clearInterval(pingInterval));
+
   server.on('upgrade', (req: IncomingMessage, socket, head) => {
     if (!req.url?.startsWith('/v1/events/ws')) return;
     wss.handleUpgrade(req, socket as any, head, (ws) => {
@@ -61,6 +75,8 @@ export function attachWebHub(server: Server): void {
     webSockets.set(tenantId, tenantSet);
     tenantSet.add(ws);
 
+    (ws as any).isAlive = true;
+    ws.on('pong', () => { (ws as any).isAlive = true; });
     ws.on('close', () => webSockets.get(tenantId)?.delete(ws));
     ws.on('error', () => ws.close());
   });

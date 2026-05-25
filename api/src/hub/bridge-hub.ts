@@ -20,6 +20,8 @@ export interface ScanErrorEvent {
 
 export const bridgeEvents = new EventEmitter();
 
+const PING_INTERVAL_MS = 25_000;
+
 const bridgeSockets = new Map<string, Set<WebSocket>>();
 
 export function getBridgeSocketsForTenant(tenantId: string): Set<WebSocket> {
@@ -28,6 +30,18 @@ export function getBridgeSocketsForTenant(tenantId: string): Set<WebSocket> {
 
 export function attachBridgeHub(server: Server): void {
   const wss = new WebSocketServer({ noServer: true });
+
+  const pingInterval = setInterval(() => {
+    for (const clients of bridgeSockets.values()) {
+      for (const ws of clients) {
+        if ((ws as any).isAlive === false) { ws.terminate(); continue; }
+        (ws as any).isAlive = false;
+        ws.ping();
+      }
+    }
+  }, PING_INTERVAL_MS);
+
+  wss.on('close', () => clearInterval(pingInterval));
 
   server.on('upgrade', (req: IncomingMessage, socket, head) => {
     if (req.url !== '/v1/devices/ws') return;
@@ -81,6 +95,9 @@ export function attachBridgeHub(server: Server): void {
       tenantSet.add(ws);
       console.log(`[bridge-hub] device connected: deviceId=${deviceId} tenantId=${tenantId} totalForTenant=${tenantSet.size}`);
       ws.send(JSON.stringify({ type: 'ack' }));
+
+      (ws as any).isAlive = true;
+      ws.on('pong', () => { (ws as any).isAlive = true; });
 
       ws.on('message', (data) => {
         try {
