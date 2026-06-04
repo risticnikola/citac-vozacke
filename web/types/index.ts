@@ -108,6 +108,12 @@ export interface CardParsedData {
   personalNo?: string;
 }
 
+export interface OnlineDevice {
+  id: string;
+  name: string | null;
+  platform: string | null;
+}
+
 export interface BridgeCardEvent {
   cardType: 'vehicle_registration' | 'id_card' | 'other';
   cardSerial: string;
@@ -115,9 +121,10 @@ export interface BridgeCardEvent {
 }
 
 export interface BridgeWsMessage {
-  type: 'card.read' | 'device.status' | 'error' | 'scan.error';
-  payload: unknown;
+  type: 'card.read' | 'device.status' | 'error' | 'scan.error' | 'devices.list';
+  payload?: unknown;
   error?: string;
+  devices?: OnlineDevice[];
 }
 
 export interface Paginated<T> {
