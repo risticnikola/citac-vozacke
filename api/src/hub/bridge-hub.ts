@@ -18,14 +18,50 @@ export interface ScanErrorEvent {
   error: string;
 }
 
+export interface DeviceOnlineEvent {
+  tenantId: string;
+  deviceId: string;
+  name: string | null;
+  platform: string | null;
+}
+
+export interface DeviceOfflineEvent {
+  tenantId: string;
+  deviceId: string;
+}
+
 export const bridgeEvents = new EventEmitter();
 
 const PING_INTERVAL_MS = 25_000;
 
+// Keyed by tenantId — used for broadcasting scan commands to any device for a tenant
 const bridgeSockets = new Map<string, Set<WebSocket>>();
+
+// Keyed by deviceId — used for routing scan to a specific device
+interface DeviceEntry {
+  ws:       WebSocket;
+  tenantId: string;
+  name:     string | null;
+  platform: string | null;
+}
+const deviceSockets = new Map<string, DeviceEntry>();
 
 export function getBridgeSocketsForTenant(tenantId: string): Set<WebSocket> {
   return bridgeSockets.get(tenantId) ?? new Set();
+}
+
+export function getDeviceEntry(deviceId: string): DeviceEntry | undefined {
+  return deviceSockets.get(deviceId);
+}
+
+export function getOnlineDevicesForTenant(tenantId: string): { id: string; name: string | null; platform: string | null }[] {
+  const result: { id: string; name: string | null; platform: string | null }[] = [];
+  for (const [id, entry] of deviceSockets) {
+    if (entry.tenantId === tenantId && entry.ws.readyState === WebSocket.OPEN) {
+      result.push({ id, name: entry.name, platform: entry.platform });
+    }
+  }
+  return result;
 }
 
 export function attachBridgeHub(server: Server): void {
@@ -75,7 +111,7 @@ export function attachBridgeHub(server: Server): void {
       }
 
       const { rows } = await bypassPool.query(
-        `SELECT public_key_pem FROM devices WHERE id = $1 AND revoked_at IS NULL`,
+        `SELECT public_key_pem, name, platform FROM devices WHERE id = $1 AND revoked_at IS NULL`,
         [deviceId],
       );
       if (!rows.length) {
@@ -90,11 +126,20 @@ export function attachBridgeHub(server: Server): void {
         return;
       }
 
+      const name:     string | null = rows[0].name     ?? null;
+      const platform: string | null = rows[0].platform ?? null;
+
+      // Register in both maps
       const tenantSet = bridgeSockets.get(tenantId) ?? new Set<WebSocket>();
       bridgeSockets.set(tenantId, tenantSet);
       tenantSet.add(ws);
+
+      deviceSockets.set(deviceId, { ws, tenantId, name, platform });
+
       console.log(`[bridge-hub] device connected: deviceId=${deviceId} tenantId=${tenantId} totalForTenant=${tenantSet.size}`);
       ws.send(JSON.stringify({ type: 'ack' }));
+
+      bridgeEvents.emit('device_online', { tenantId, deviceId, name, platform } satisfies DeviceOnlineEvent);
 
       (ws as any).isAlive = true;
       ws.on('pong', () => { (ws as any).isAlive = true; });
@@ -118,7 +163,9 @@ export function attachBridgeHub(server: Server): void {
 
       ws.on('close', () => {
         bridgeSockets.get(tenantId)?.delete(ws);
+        deviceSockets.delete(deviceId);
         console.log(`[bridge-hub] device disconnected: deviceId=${deviceId} tenantId=${tenantId}`);
+        bridgeEvents.emit('device_offline', { tenantId, deviceId } satisfies DeviceOfflineEvent);
       });
 
       ws.on('error', () => ws.close());
