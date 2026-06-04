@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
 import { scanCard } from '@/lib/bridge';
+import { useBridge } from '@/components/BridgeProvider';
 import type { Vehicle } from '@/types';
 
 function formatMileage(km: number | null) {
@@ -76,14 +77,16 @@ export default function VehiclesPage() {
   const debouncedSearch = useDebounce(search);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState('');
+  const { selectedDeviceId } = useBridge();
 
   async function handleScan() {
+    if (!selectedDeviceId) return;
     setScanning(true);
     setScanError('');
     try {
-      await scanCard();
+      await scanCard(selectedDeviceId);
     } catch (err: any) {
-      const msg = err.message ?? 'Scan failed';
+      const msg = err?.response?.data?.error ?? err.message ?? 'Scan failed';
       setScanError(msg);
       setTimeout(() => setScanError(''), 3000);
     } finally {
@@ -129,7 +132,12 @@ export default function VehiclesPage() {
         </div>
         <div className="flex flex-col items-end gap-1">
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={handleScan} disabled={scanning}>
+            <Button
+              variant="ghost"
+              onClick={handleScan}
+              disabled={scanning || !selectedDeviceId}
+              title={!selectedDeviceId ? 'Select a reader in the top bar' : undefined}
+            >
               {scanning
                 ? <Spinner className="h-4 w-4" />
                 : <ScanLine className="h-4 w-4" />}
