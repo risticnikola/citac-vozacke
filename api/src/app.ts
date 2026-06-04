@@ -79,7 +79,11 @@ export async function buildApp(opts: { logger?: boolean | object } = {}): Promis
       return reply.code(503).send({ error: 'Device not connected' });
     }
 
-    entry.ws.send(JSON.stringify({ type: 'scan' }));
+    try {
+      entry.ws.send(JSON.stringify({ type: 'scan' }));
+    } catch {
+      return reply.code(503).send({ error: 'Device connection lost' });
+    }
     console.log(`[scan] sent scan command to deviceId=${deviceId} tenantId=${req.tenantId}`);
     return reply.code(202).send({ ok: true });
   });
