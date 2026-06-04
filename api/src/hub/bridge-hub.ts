@@ -38,7 +38,7 @@ const PING_INTERVAL_MS = 25_000;
 const bridgeSockets = new Map<string, Set<WebSocket>>();
 
 // Keyed by deviceId — used for routing scan to a specific device
-interface DeviceEntry {
+export interface DeviceEntry {
   ws:       WebSocket;
   tenantId: string;
   name:     string | null;
