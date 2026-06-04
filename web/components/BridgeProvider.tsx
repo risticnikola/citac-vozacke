@@ -7,8 +7,11 @@ const BridgeContext = createContext<BridgeSocketState>({
   connected: false,
   lastCard: null,
   scanError: null,
+  onlineDevices: [],
+  selectedDeviceId: null,
   clearCard: () => {},
   clearScanError: () => {},
+  setSelectedDeviceId: () => {},
 });
 
 export function BridgeProvider({ children }: { children: React.ReactNode }) {

@@ -1,27 +1,57 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { BridgeCardEvent, BridgeWsMessage } from '@/types';
+import type { BridgeCardEvent, BridgeWsMessage, OnlineDevice } from '@/types';
 
 const WS_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3050')
   .replace(/^http/, 'ws');
 const MAX_BACKOFF_MS = 30_000;
+const STORAGE_KEY = 'bridge_selected_device';
+
+function loadStoredDeviceId(): string | null {
+  try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
+}
+
+function saveDeviceId(id: string | null): void {
+  try {
+    if (id) localStorage.setItem(STORAGE_KEY, id);
+    else     localStorage.removeItem(STORAGE_KEY);
+  } catch { /* ignore — localStorage may be unavailable */ }
+}
 
 export interface BridgeSocketState {
-  connected: boolean;
-  lastCard: BridgeCardEvent | null;
-  scanError: string | null;
-  clearCard: () => void;
-  clearScanError: () => void;
+  connected:           boolean;
+  lastCard:            BridgeCardEvent | null;
+  scanError:           string | null;
+  onlineDevices:       OnlineDevice[];
+  selectedDeviceId:    string | null;
+  clearCard:           () => void;
+  clearScanError:      () => void;
+  setSelectedDeviceId: (id: string | null) => void;
 }
 
 export function useBridgeSocket(): BridgeSocketState {
-  const [connected, setConnected]   = useState(false);
-  const [lastCard, setLastCard]     = useState<BridgeCardEvent | null>(null);
-  const [scanError, setScanError]   = useState<string | null>(null);
-  const wsRef    = useRef<WebSocket | null>(null);
-  const backoff  = useRef(2_000);
-  const destroyed = useRef(false);
+  const [onlineDevices, setOnlineDevices]             = useState<OnlineDevice[]>([]);
+  const [lastCard, setLastCard]                       = useState<BridgeCardEvent | null>(null);
+  const [scanError, setScanError]                     = useState<string | null>(null);
+  const [selectedDeviceId, setSelectedDeviceIdState]  = useState<string | null>(null);
+
+  const wsRef       = useRef<WebSocket | null>(null);
+  const backoff     = useRef(2_000);
+  const destroyed   = useRef(false);
+  const initialized = useRef(false);
+
+  // Load stored selection on first client-side mount only
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    setSelectedDeviceIdState(loadStoredDeviceId());
+  }, []);
+
+  const setSelectedDeviceId = useCallback((id: string | null) => {
+    setSelectedDeviceIdState(id);
+    saveDeviceId(id);
+  }, []);
 
   const connect = useCallback(() => {
     if (destroyed.current) return;
@@ -33,26 +63,38 @@ export function useBridgeSocket(): BridgeSocketState {
 
       ws.onopen = () => {
         console.log('[bridge-ws] connected to', `${WS_BASE}/v1/events/ws`);
-        setConnected(true);
         backoff.current = 2_000;
       };
 
       ws.onmessage = (ev) => {
         try {
           const msg: BridgeWsMessage = JSON.parse(ev.data);
-          console.log('[bridge-ws] message received:', msg);
+
+          if (msg.type === 'devices.list') {
+            const devices = msg.devices ?? [];
+            setOnlineDevices(devices);
+            // If stored selection is no longer online, clear it
+            setSelectedDeviceIdState((prev) => {
+              if (prev && !devices.find((d) => d.id === prev)) {
+                saveDeviceId(null);
+                return null;
+              }
+              return prev;
+            });
+            return;
+          }
+
           if (msg.type === 'card.read') {
-            console.log('[bridge-ws] card data:', msg.payload);
             setLastCard(msg.payload as BridgeCardEvent);
           } else if (msg.type === 'scan.error') {
-            console.error('[bridge-ws] scan error:', msg.error);
             setScanError(msg.error ?? 'Scan failed');
           }
         } catch { /* ignore malformed */ }
       };
 
       ws.onclose = () => {
-        setConnected(false);
+        // Clear device list — will be refreshed on reconnect via snapshot
+        setOnlineDevices([]);
         wsRef.current = null;
         if (!destroyed.current) {
           setTimeout(connect, backoff.current);
@@ -60,11 +102,9 @@ export function useBridgeSocket(): BridgeSocketState {
         }
       };
 
-      ws.onerror = () => {
-        ws.close();
-      };
+      ws.onerror = () => { ws.close(); };
     } catch {
-      // WebSocket constructor can throw in SSR — just skip
+      // WebSocket constructor can throw in SSR — skip
     }
   }, []);
 
@@ -80,5 +120,17 @@ export function useBridgeSocket(): BridgeSocketState {
   const clearCard      = useCallback(() => setLastCard(null), []);
   const clearScanError = useCallback(() => setScanError(null), []);
 
-  return { connected, lastCard, scanError, clearCard, clearScanError };
+  // connected = at least one bridge is online for this tenant
+  const connected = onlineDevices.length > 0;
+
+  return {
+    connected,
+    lastCard,
+    scanError,
+    onlineDevices,
+    selectedDeviceId,
+    clearCard,
+    clearScanError,
+    setSelectedDeviceId,
+  };
 }
