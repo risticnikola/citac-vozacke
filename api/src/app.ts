@@ -57,17 +57,30 @@ export async function buildApp(opts: { logger?: boolean | object } = {}): Promis
   const { downloadsRoutes } = await import('./routes/v1/downloads.js');
   await app.register(downloadsRoutes, { prefix: '/v1/downloads' });
 
-  app.post('/v1/scan', {
+  interface ScanBody { deviceId?: string; }
+
+  app.post<{ Body: ScanBody }>('/v1/scan', {
     preHandler: [app.authenticate, app.requireTenantContext],
   }, async (req, reply) => {
-    const { getBridgeSocketsForTenant } = await import('./hub/bridge-hub.js');
+    const { getDeviceEntry } = await import('./hub/bridge-hub.js');
     const { WebSocket } = await import('ws');
-    const sockets = getBridgeSocketsForTenant(req.tenantId);
-    const active = [...sockets].filter((ws) => ws.readyState === WebSocket.OPEN);
-    console.log(`[scan] tenantId=${req.tenantId} total=${sockets.size} open=${active.length}`);
-    if (!active.length) return reply.code(503).send({ error: 'No bridge connected for this tenant' });
-    active[0].send(JSON.stringify({ type: 'scan' }));
-    console.log(`[scan] sent scan command to bridge`);
+
+    const { deviceId } = req.body ?? {};
+    if (!deviceId) return reply.code(400).send({ error: 'deviceId required' });
+
+    const entry = getDeviceEntry(deviceId);
+
+    // Verify socket is open and belongs to the requesting tenant
+    if (!entry || entry.ws.readyState !== WebSocket.OPEN) {
+      return reply.code(503).send({ error: 'Device not connected' });
+    }
+    if (entry.tenantId !== req.tenantId) {
+      // Don't leak that device exists — return same 503
+      return reply.code(503).send({ error: 'Device not connected' });
+    }
+
+    entry.ws.send(JSON.stringify({ type: 'scan' }));
+    console.log(`[scan] sent scan command to deviceId=${deviceId} tenantId=${req.tenantId}`);
     return reply.code(202).send({ ok: true });
   });
 
