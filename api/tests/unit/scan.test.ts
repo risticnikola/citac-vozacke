@@ -21,18 +21,41 @@ beforeAll(async () => {
 
 afterAll(async () => { await app.close(); });
 
-it('POST /v1/scan returns 503 when no bridge connected for tenant', async () => {
-  const token = sign(
-    { sub: 'user-1', tenantId: TENANT_ID, role: 'mechanic' },
+function userToken(tenantId = TENANT_ID) {
+  return sign(
+    { sub: 'user-1', tenantId, role: 'mechanic' },
     JWT_SECRET,
     { expiresIn: '1h' },
   );
+}
+
+it('POST /v1/scan returns 400 when deviceId is missing', async () => {
   const res = await app.inject({
-    method: 'POST',
-    url: '/v1/scan',
-    headers: { Authorization: `Bearer ${token}` },
+    method:  'POST',
+    url:     '/v1/scan',
+    headers: { Authorization: `Bearer ${userToken()}`, 'Content-Type': 'application/json' },
+    payload: {},
+  });
+  expect(res.statusCode).toBe(400);
+  expect(JSON.parse(res.body).error).toMatch(/deviceId/i);
+});
+
+it('POST /v1/scan returns 503 when deviceId is not connected', async () => {
+  const res = await app.inject({
+    method:  'POST',
+    url:     '/v1/scan',
+    headers: { Authorization: `Bearer ${userToken()}`, 'Content-Type': 'application/json' },
+    payload: { deviceId: 'device-that-does-not-exist' },
   });
   expect(res.statusCode).toBe(503);
-  const body = JSON.parse(res.body);
-  expect(body.error).toMatch(/no.*bridge/i);
+  expect(JSON.parse(res.body).error).toMatch(/not connected/i);
+});
+
+it('POST /v1/scan returns 401 when not authenticated', async () => {
+  const res = await app.inject({
+    method:  'POST',
+    url:     '/v1/scan',
+    payload: { deviceId: 'any-device' },
+  });
+  expect(res.statusCode).toBe(401);
 });
