@@ -57,6 +57,7 @@ function BridgeDevicePicker() {
   return (
     <div ref={ref} className="relative">
       <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
         title={needsSelection ? 'Select a card reader' : `Using: ${deviceLabel(selected!)}`}
         className="flex items-center gap-1.5 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
@@ -79,6 +80,7 @@ function BridgeDevicePicker() {
         <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl">
           {onlineDevices.map((d) => (
             <button
+              type="button"
               key={d.id}
               onClick={() => {
                 setSelectedDeviceId(d.id === selectedDeviceId ? null : d.id);
