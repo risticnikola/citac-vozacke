@@ -3,7 +3,14 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage, Server } from 'http';
 import jwt from 'jsonwebtoken';
 const { verify } = jwt;
-import { bridgeEvents, type CardDataEvent, type ScanErrorEvent } from './bridge-hub.js';
+import {
+  bridgeEvents,
+  getOnlineDevicesForTenant,
+  type CardDataEvent,
+  type ScanErrorEvent,
+  type DeviceOnlineEvent,
+  type DeviceOfflineEvent,
+} from './bridge-hub.js';
 
 const PING_INTERVAL_MS = 25_000;
 
@@ -15,6 +22,13 @@ export function broadcastToTenant(tenantId: string, msg: object): void {
   for (const ws of clients) {
     if (ws.readyState === WebSocket.OPEN) ws.send(payload);
   }
+}
+
+function broadcastDeviceList(tenantId: string): void {
+  broadcastToTenant(tenantId, {
+    type:    'devices.list',
+    devices: getOnlineDevicesForTenant(tenantId),
+  });
 }
 
 // Register once at module load — bridgeEvents is a module singleton
@@ -31,6 +45,14 @@ bridgeEvents.on('card_data', (event: CardDataEvent) => {
 
 bridgeEvents.on('scan_error', (event: ScanErrorEvent) => {
   broadcastToTenant(event.tenantId, { type: 'scan.error', error: event.error });
+});
+
+bridgeEvents.on('device_online', (event: DeviceOnlineEvent) => {
+  broadcastDeviceList(event.tenantId);
+});
+
+bridgeEvents.on('device_offline', (event: DeviceOfflineEvent) => {
+  broadcastDeviceList(event.tenantId);
 });
 
 export function attachWebHub(server: Server): void {
@@ -74,6 +96,12 @@ export function attachWebHub(server: Server): void {
     const tenantSet = webSockets.get(tenantId) ?? new Set<WebSocket>();
     webSockets.set(tenantId, tenantSet);
     tenantSet.add(ws);
+
+    // Send current online-device snapshot immediately
+    ws.send(JSON.stringify({
+      type:    'devices.list',
+      devices: getOnlineDevicesForTenant(tenantId),
+    }));
 
     (ws as any).isAlive = true;
     ws.on('pong', () => { (ws as any).isAlive = true; });
