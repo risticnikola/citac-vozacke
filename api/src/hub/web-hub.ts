@@ -98,10 +98,12 @@ export function attachWebHub(server: Server): void {
     tenantSet.add(ws);
 
     // Send current online-device snapshot immediately
-    ws.send(JSON.stringify({
-      type:    'devices.list',
-      devices: getOnlineDevicesForTenant(tenantId),
-    }));
+    try {
+      ws.send(JSON.stringify({
+        type:    'devices.list',
+        devices: getOnlineDevicesForTenant(tenantId),
+      }));
+    } catch { /* client may have disconnected before snapshot sent */ }
 
     (ws as any).isAlive = true;
     ws.on('pong', () => { (ws as any).isAlive = true; });
