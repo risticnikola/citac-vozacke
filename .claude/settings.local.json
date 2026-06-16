@@ -48,7 +48,13 @@
       "PowerShell(Copy-Item *)",
       "Bash(docker exec citac-vozacke-api-1 *)",
       "Bash(docker exec citac-vozacke-localstack-1 *)",
-      "Bash(docker exec *)"
+      "Bash(docker exec *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:d.get\\(k\\) for k in ['scripts','devDependencies','dependencies']}, indent=2\\)\\)\")",
+      "Bash(npx vitest *)",
+      "Bash(timeout 10 grep -l \"attachBridgeHub\\\\|getBridgeSocketsForTenant\\\\|getDeviceEntry\\\\|getOnlineDevicesForTenant\" api/src/**/*.ts)",
+      "Bash(cat)",
+      "Read(//tmp/**)",
+      "Bash(xargs grep -l \"ws.send\")"
     ]
   }
 }
