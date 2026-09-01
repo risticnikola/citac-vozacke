@@ -47,4 +47,16 @@ describe('normalizePlate', () => {
   it('only trims whitespace, does not throw, on empty string', () => {
     expect(normalizePlate('   ')).toBe('');
   });
+
+  it('returns null as-is for non-string null input', () => {
+    expect(normalizePlate(null as any)).toBe(null);
+  });
+
+  it('returns undefined as-is for non-string undefined input', () => {
+    expect(normalizePlate(undefined as any)).toBe(undefined);
+  });
+
+  it('preserves case for lowercase non-matching custom plate', () => {
+    expect(normalizePlate('mojauzda')).toBe('mojauzda');
+  });
 });
