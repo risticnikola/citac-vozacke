@@ -3,6 +3,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { Type, Static } from '@sinclair/typebox';
 import { pool } from '../../db/client.js';
 import { withTenantContext } from '../../db/tenant-context.js';
+import { normalizePlate } from '../../lib/plate.js';
 
 const VehicleBody = Type.Object({
   vin:        Type.Optional(Type.String({ maxLength: 17 })),
@@ -81,12 +82,13 @@ export const vehiclesRoutes: FastifyPluginAsync = async (fastify) => {
     preHandler: [fastify.authenticate, fastify.requireTenantContext],
   }, async (req, reply) => {
     const b = req.body;
+    const plate = b.plate !== undefined ? normalizePlate(b.plate) : undefined;
     try {
       const rows = await withTenantContext(pool, req.tenantId, async (c) => {
         const { rows } = await c.query(
           `INSERT INTO vehicles (tenant_id,vin,plate,make,model,year,owner_name,owner_phone)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-          [req.tenantId, b.vin, b.plate, b.make, b.model, b.year, b.ownerName, b.ownerPhone],
+          [req.tenantId, b.vin, plate, b.make, b.model, b.year, b.ownerName, b.ownerPhone],
         );
         return rows;
       });
@@ -103,13 +105,14 @@ export const vehiclesRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const b = req.body;
+    const plate = b.plate !== undefined ? normalizePlate(b.plate) : undefined;
     try {
       const rows = await withTenantContext(pool, req.tenantId, async (c) => {
         const { rows } = await c.query(
           `UPDATE vehicles SET vin=$2,plate=$3,make=$4,model=$5,year=$6,
              owner_name=$7,owner_phone=$8,updated_at=NOW()
            WHERE id=$1 AND deleted_at IS NULL RETURNING *`,
-          [id, b.vin, b.plate, b.make, b.model, b.year, b.ownerName, b.ownerPhone],
+          [id, b.vin, plate, b.make, b.model, b.year, b.ownerName, b.ownerPhone],
         );
         return rows;
       });
