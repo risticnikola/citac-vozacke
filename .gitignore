@@ -1,7 +1,6 @@
 build/
 dist/
-/dist-electron/*/**
-!/dist-electron/Vehicle Card Bridge Setup 1.0.0.exe
+dist-electron/
 *.def
 *.user
 .vs/
