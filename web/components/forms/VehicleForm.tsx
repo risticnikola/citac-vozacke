@@ -74,7 +74,7 @@ export function VehicleForm({ vehicle, prefill, onSuccess, onCancel }: VehicleFo
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Plate" htmlFor="plate">
-          <input id="plate" className={inputClass} placeholder="BG 123-AB"
+          <input id="plate" className={inputClass} placeholder="BG123-AB"
             value={fields.plate} onChange={set('plate')} />
         </FormField>
         <FormField label="VIN" htmlFor="vin" hint="Up to 17 characters">
