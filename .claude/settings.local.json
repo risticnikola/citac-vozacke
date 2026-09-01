@@ -48,7 +48,25 @@
       "PowerShell(Copy-Item *)",
       "Bash(docker exec citac-vozacke-api-1 *)",
       "Bash(docker exec citac-vozacke-localstack-1 *)",
-      "Bash(docker exec *)"
+      "Bash(docker exec *)",
+      "Bash(xargs -I{} docker port {})",
+      "Read(//home/nikola/**)",
+      "Bash(sudo -n true)",
+      "Bash(crontab -l)",
+      "Bash(ps aux *)",
+      "Read(//etc/**)",
+      "Read(//etc/cron.d/**)",
+      "Bash(docker volume *)",
+      "Bash(dpkg -l ufw)",
+      "Bash(doctl account *)",
+      "Bash(sudo -l -n)",
+      "Bash(docker run *)",
+      "Bash(pm2 list *)",
+      "Bash(pm2 jlist *)",
+      "Bash(pm2 delete *)",
+      "Bash(pm2 start *)",
+      "Bash(pm2 env *)",
+      "Bash(pm2 save *)"
     ]
   }
 }

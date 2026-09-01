@@ -3,8 +3,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { BridgeCardEvent, BridgeWsMessage, OnlineDevice } from '@/types';
 
-const WS_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3050')
-  .replace(/^http/, 'ws');
+function getWsBase(): string {
+  if (typeof window === 'undefined') return '';
+  const envBase = process.env.NEXT_PUBLIC_API_URL;
+  if (envBase) return envBase.replace(/^http/, 'ws');
+  return `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
+}
 const MAX_BACKOFF_MS = 30_000;
 const STORAGE_KEY = 'bridge_selected_device';
 
@@ -58,11 +62,12 @@ export function useBridgeSocket(): BridgeSocketState {
     try {
       const token = typeof window !== 'undefined' ? sessionStorage.getItem('token') : null;
       if (!token) return;
-      const ws = new WebSocket(`${WS_BASE}/v1/events/ws?token=${encodeURIComponent(token)}`);
+      const wsBase = getWsBase();
+      const ws = new WebSocket(`${wsBase}/v1/events/ws?token=${encodeURIComponent(token)}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('[bridge-ws] connected to', `${WS_BASE}/v1/events/ws`);
+        console.log('[bridge-ws] connected to', `${wsBase}/v1/events/ws`);
         backoff.current = 2_000;
       };
 

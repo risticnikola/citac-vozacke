@@ -10,7 +10,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_DB: vehicleapp
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -37,7 +37,7 @@ services:
     environment:
       FLYWAY_URL: jdbc:postgresql://postgres:5432/vehicleapp
       FLYWAY_USER: migration_role
-      FLYWAY_PASSWORD: migration_role_password
+      FLYWAY_PASSWORD: ${MIGRATION_ROLE_PASSWORD:?MIGRATION_ROLE_PASSWORD must be set}
       FLYWAY_SCHEMAS: public
     command: migrate
     logging: *default-logging
@@ -45,7 +45,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     volumes:
       - redis_data:/data
     ports: ["127.0.0.1:6379:6379"]
@@ -85,8 +85,8 @@ services:
       localstack: { condition: service_healthy }
       flyway:     { condition: service_completed_successfully }
     environment:
-      DATABASE_URL: postgresql://app_role:app_role_password@postgres:5432/vehicleapp
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://app_role:${APP_ROLE_PASSWORD:?APP_ROLE_PASSWORD must be set}@postgres:5432/vehicleapp
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set}@redis:6379
       JWT_SECRET: dev-secret-change-in-prod
       AWS_REGION: eu-north-1
       AWS_ENDPOINT_URL: http://localstack:4566

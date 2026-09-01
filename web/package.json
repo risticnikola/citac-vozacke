@@ -9,8 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.100.9",
     "@tailwindcss/postcss": "^4",
+    "@tanstack/react-query": "^5.100.9",
     "axios": "^1.16.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.14.0",
@@ -20,12 +20,12 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
-    "@types/node": "^20",
-    "@types/react": "^19",
+    "@types/node": "20.19.41",
+    "@types/react": "19.2.14",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "5.9.3"
   }
 }
